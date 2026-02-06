@@ -144,6 +144,8 @@ export default function Page() {
   const [status, setStatus] = useState('');
 
   const maptilerKey = process.env.NEXT_PUBLIC_MAPTILER_KEY;
+  const maptilerStatus = maptilerKey ? `MapTiler: ON (${maptilerKey.slice(0, 6)}...)` : 'MapTiler: OFF';
+
 
   const latestPriceForSelected = useMemo(() => {
     if (!selectedBar) return undefined;
@@ -389,9 +391,9 @@ export default function Page() {
           <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
               <div style={ui.title}>Alkoholfri öl - karta</div>
-              <div style={ui.subtitle}>
-                Klicka på en bar/café i kartan och sätt pris. Markör visas bara när pris finns.
-              </div>
+                <div style={ui.subtitle}>
+                  {maptilerStatus}
+                </div>
             </div>
             <button onClick={loadBarsAndPrices} style={ui.btnGhost}>
               Uppdatera
