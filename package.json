@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "@supabase/supabase-js": "^2.95.3",
+    "maplibre-gl": "^5.17.0"
+  }
+}
