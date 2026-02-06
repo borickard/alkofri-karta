@@ -2,12 +2,19 @@
 
 import 'maplibre-gl/dist/maplibre-gl.css';
 import maplibregl, { Marker } from 'maplibre-gl';
-import type { Map as MLMap } from 'maplibre-gl';
+import type { Map as MLMap, MapMouseEvent } from 'maplibre-gl';
 import { createClient } from '@supabase/supabase-js';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 type Bar = { id: number; name: string; lat: number; lng: number };
 type LatestPrice = { bar_id: number; price_sek: number; created_at: string };
+
+type CandidatePlace = {
+  name: string;
+  lat: number;
+  lng: number;
+  kind: string; // bar/cafe/restaurant/pub/etc
+};
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -15,12 +22,11 @@ const supabase = createClient(
 );
 
 function colorForPrice(price?: number) {
-  if (!price) return '#9CA3AF'; // grå
-  if (price <= 45) return '#16A34A'; // grön
-  if (price <= 59) return '#F59E0B'; // gul
-  return '#DC2626'; // röd
+  if (!price) return '#9CA3AF';
+  if (price <= 45) return '#16A34A';
+  if (price <= 59) return '#F59E0B';
+  return '#DC2626';
 }
-
 function bgForPrice(price?: number) {
   if (!price) return '#F3F4F6';
   if (price <= 45) return '#E9F9EF';
@@ -36,9 +42,9 @@ const ui = {
     padding: 14,
     boxShadow: '0 18px 50px rgba(0,0,0,0.18)',
   } as React.CSSProperties,
-  title: { fontWeight: 800, fontSize: 16, color: '#111827', letterSpacing: -0.2 } as React.CSSProperties,
+  title: { fontWeight: 900, fontSize: 16, color: '#111827', letterSpacing: -0.2 } as React.CSSProperties,
   subtitle: { fontSize: 13, color: '#374151', marginTop: 2 } as React.CSSProperties,
-  label: { fontSize: 12, fontWeight: 700, color: '#111827' } as React.CSSProperties,
+  label: { fontSize: 12, fontWeight: 800, color: '#111827' } as React.CSSProperties,
   muted: { fontSize: 12, color: '#4B5563' } as React.CSSProperties,
   hr: { height: 1, background: '#E5E7EB', marginTop: 12, marginBottom: 12 } as React.CSSProperties,
   input: {
@@ -57,7 +63,16 @@ const ui = {
     border: '1px solid #111827',
     background: '#111827',
     color: 'white',
-    fontWeight: 800,
+    fontWeight: 900,
+    fontSize: 14,
+  } as React.CSSProperties,
+  btnDanger: {
+    padding: '11px 12px',
+    borderRadius: 12,
+    border: '1px solid #B91C1C',
+    background: '#B91C1C',
+    color: 'white',
+    fontWeight: 900,
     fontSize: 14,
   } as React.CSSProperties,
   btnGhost: {
@@ -66,7 +81,7 @@ const ui = {
     border: '1px solid #E5E7EB',
     background: '#F9FAFB',
     color: '#111827',
-    fontWeight: 700,
+    fontWeight: 800,
     fontSize: 13,
   } as React.CSSProperties,
   badge: (bg: string) =>
@@ -78,11 +93,44 @@ const ui = {
       borderRadius: 999,
       background: bg,
       fontSize: 12,
-      fontWeight: 700,
+      fontWeight: 800,
       color: '#111827',
       border: '1px solid rgba(17,24,39,0.06)',
     }) as React.CSSProperties,
 };
+
+function pickCandidateFromFeatures(features: any[], fallbackLngLat: { lng: number; lat: number }): CandidatePlace | null {
+  // Heuristik: välj första feature som ser ut som “place/poi” och liknar café/bar/restaurang.
+  const wanted = new Set(['bar', 'cafe', 'restaurant', 'pub', 'fast_food', 'biergarten']);
+
+  for (const f of features) {
+    const props = (f && f.properties) || {};
+    const layerId = f?.layer?.id ? String(f.layer.id) : '';
+    const cls = String(props.class ?? props.category ?? props.type ?? props.kind ?? '').toLowerCase();
+    const name = String(props.name ?? props['name:sv'] ?? props['name:en'] ?? '').trim();
+
+    const looksLikePoi =
+      layerId.toLowerCase().includes('poi') ||
+      layerId.toLowerCase().includes('place') ||
+      layerId.toLowerCase().includes('label');
+
+    const kind = wanted.has(cls) ? cls : '';
+
+    if (looksLikePoi && (kind || /bar|cafe|kafé|café|restaurant|pub/i.test(cls)) && name) {
+      // koordinat: använd feature geometry om det är point annars fallback klickposition
+      let lng = fallbackLngLat.lng;
+      let lat = fallbackLngLat.lat;
+
+      if (f.geometry?.type === 'Point' && Array.isArray(f.geometry.coordinates)) {
+        lng = f.geometry.coordinates[0];
+        lat = f.geometry.coordinates[1];
+      }
+
+      return { name, lat, lng, kind: kind || cls || 'place' };
+    }
+  }
+  return null;
+}
 
 export default function Page() {
   const mapRef = useRef<MLMap | null>(null);
@@ -92,12 +140,12 @@ export default function Page() {
   const [latestPrices, setLatestPrices] = useState(() => new globalThis.Map<number, LatestPrice>());
 
   const [selectedBar, setSelectedBar] = useState<Bar | null>(null);
-  const [priceInput, setPriceInput] = useState<string>('');
-  const [status, setStatus] = useState<string>('');
+  const [candidate, setCandidate] = useState<CandidatePlace | null>(null);
 
-  const [barName, setBarName] = useState('');
-  const [barLat, setBarLat] = useState('');
-  const [barLng, setBarLng] = useState('');
+  const [priceInput, setPriceInput] = useState('');
+  const [status, setStatus] = useState('');
+
+  const maptilerKey = process.env.NEXT_PUBLIC_MAPTILER_KEY;
 
   const latestPriceForSelected = useMemo(() => {
     if (!selectedBar) return undefined;
@@ -105,9 +153,15 @@ export default function Page() {
   }, [selectedBar, latestPrices]);
 
   useEffect(() => {
+    // MapTiler Streets style (MapLibre style.json)
+    // Docs: MapTiler Maps API requires key.  [oai_citation:4‡docs.maptiler.com](https://docs.maptiler.com/cloud/api/maps/?utm_source=chatgpt.com)
+    const style = maptilerKey
+      ? `https://api.maptiler.com/maps/streets-v2/style.json?key=${maptilerKey}`
+      : 'https://demotiles.maplibre.org/style.json';
+
     const map = new maplibregl.Map({
       container: 'map',
-      style: 'https://demotiles.maplibre.org/style.json',
+      style,
       center: [18.065, 59.333],
       zoom: 12,
     });
@@ -115,12 +169,34 @@ export default function Page() {
     map.addControl(new maplibregl.NavigationControl(), 'top-right');
     mapRef.current = map;
 
+    const onClick = (e: MapMouseEvent) => {
+      // Klicka på POI i kartan: plocka feature vid punkten
+      const m = mapRef.current;
+      if (!m) return;
+
+      const features = m.queryRenderedFeatures(e.point) as any[];
+      const cand = pickCandidateFromFeatures(features, e.lngLat);
+
+      if (cand) {
+        setCandidate(cand);
+        setSelectedBar(null);
+        setPriceInput('');
+        setStatus('');
+      } else {
+        // Om man klickar “tomt”: stäng candidate
+        setCandidate(null);
+      }
+    };
+
+    map.on('click', onClick);
+
     return () => {
+      map.off('click', onClick);
       map.remove();
       mapRef.current = null;
       markersRef.current.clear();
     };
-  }, []);
+  }, [maptilerKey]);
 
   async function loadBarsAndPrices() {
     setStatus('');
@@ -137,7 +213,7 @@ export default function Page() {
       .from('prices')
       .select('bar_id,price_sek,created_at')
       .order('created_at', { ascending: false })
-      .limit(500);
+      .limit(1000);
 
     if (pricesErr) return setStatus(`Fel: ${pricesErr.message}`);
 
@@ -148,51 +224,42 @@ export default function Page() {
     setLatestPrices(m);
   }
 
-  function renderMarkers(barsToRender: Bar[], pricesMap: globalThis.Map<number, LatestPrice>) {
+  function renderMarkers(onlyPricedBars: Bar[], pricesMap: globalThis.Map<number, LatestPrice>) {
     const map = mapRef.current;
     if (!map) return;
 
     for (const marker of markersRef.current.values()) marker.remove();
     markersRef.current.clear();
 
-    for (const b of barsToRender) {
+    for (const b of onlyPricedBars) {
       const lp = pricesMap.get(b.id);
       const price = lp?.price_sek;
+      if (!price) continue; // visas inte om ingen prisrapport finns
 
       const ringColor = colorForPrice(price);
       const bg = bgForPrice(price);
 
-      // Markör som "pill" med pris
-      const el = document.createElement('button');
-      el.type = 'button';
+      const pill = document.createElement('button');
+      pill.type = 'button';
+      pill.textContent = String(price);
 
-      el.style.display = 'inline-flex';
-      el.style.alignItems = 'center';
-      el.style.justifyContent = 'center';
-      el.style.gap = '6px';
+      pill.style.display = 'inline-flex';
+      pill.style.alignItems = 'center';
+      pill.style.justifyContent = 'center';
+      pill.style.minWidth = '44px';
+      pill.style.height = '28px';
+      pill.style.padding = '0 10px';
+      pill.style.borderRadius = '999px';
+      pill.style.border = `2px solid ${ringColor}`;
+      pill.style.background = bg;
+      pill.style.boxShadow = '0 8px 20px rgba(0,0,0,0.18)';
+      pill.style.cursor = 'pointer';
+      pill.style.fontWeight = '900';
+      pill.style.fontSize = '12px';
+      pill.style.color = '#111827';
+      pill.style.fontFamily = 'system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif';
+      pill.style.userSelect = 'none';
 
-      el.style.minWidth = '44px';
-      el.style.height = '28px';
-      el.style.padding = '0 10px';
-
-      el.style.borderRadius = '999px';
-      el.style.border = `2px solid ${ringColor}`;
-      el.style.background = bg;
-
-      el.style.boxShadow = '0 8px 20px rgba(0,0,0,0.18)';
-      el.style.cursor = 'pointer';
-
-      el.style.fontWeight = '900';
-      el.style.fontSize = '12px';
-      el.style.color = '#111827';
-      el.style.fontFamily = 'system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif';
-
-      el.style.userSelect = 'none';
-
-      // Text i markören
-      el.textContent = price ? `${price}` : '—';
-
-      // Liten "pin"-triangel under (pseudo)
       const tip = document.createElement('div');
       tip.style.position = 'absolute';
       tip.style.left = '50%';
@@ -203,14 +270,11 @@ export default function Page() {
       tip.style.transform = 'translateX(-50%) rotate(45deg)';
       tip.style.borderRight = `2px solid ${ringColor}`;
       tip.style.borderBottom = `2px solid ${ringColor}`;
-      tip.style.borderLeft = '0';
-      tip.style.borderTop = '0';
       tip.style.boxShadow = '0 8px 20px rgba(0,0,0,0.08)';
 
-      // wrapper för att tip ska funka
       const wrap = document.createElement('div');
       wrap.style.position = 'relative';
-      wrap.appendChild(el);
+      wrap.appendChild(pill);
       wrap.appendChild(tip);
 
       const marker = new maplibregl.Marker({ element: wrap, anchor: 'bottom' })
@@ -219,6 +283,7 @@ export default function Page() {
 
       wrap.onclick = () => {
         setSelectedBar(b);
+        setCandidate(null);
         setPriceInput('');
         setStatus('');
       };
@@ -233,11 +298,53 @@ export default function Page() {
   }, []);
 
   useEffect(() => {
+    // Visa bara markörer för ställen med pris
     renderMarkers(bars, latestPrices);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bars, latestPrices]);
 
-  async function savePrice() {
+  async function ensureBarForCandidate(c: CandidatePlace): Promise<Bar | null> {
+    // Enkel MVP: skapa alltid en “bar” i vår DB med name+lat+lng.
+    // (Kan bli dubblering; det löser vi senare med place-id när du vill.)
+    const { data, error } = await supabase
+      .from('bars')
+      .insert({ name: c.name, lat: c.lat, lng: c.lng })
+      .select('id,name,lat,lng')
+      .single();
+
+    if (error) {
+      setStatus(`Fel: ${error.message}`);
+      return null;
+    }
+    return data as Bar;
+  }
+
+  async function savePriceForCandidate() {
+    if (!candidate) return;
+
+    const p = parseInt(priceInput.trim(), 10);
+    if (!Number.isFinite(p) || p <= 0) return setStatus('Skriv ett giltigt pris.');
+
+    setStatus('Sparar...');
+
+    const bar = await ensureBarForCandidate(candidate);
+    if (!bar) return;
+
+    const { error } = await supabase.from('prices').insert({
+      bar_id: bar.id,
+      price_sek: p,
+    });
+
+    if (error) return setStatus(`Fel: ${error.message}`);
+
+    setStatus('Sparat.');
+    setCandidate(null);
+    setSelectedBar(bar);
+    setPriceInput('');
+    await loadBarsAndPrices();
+  }
+
+  async function savePriceForSelected() {
     if (!selectedBar) return;
 
     const p = parseInt(priceInput.trim(), 10);
@@ -253,32 +360,25 @@ export default function Page() {
     if (error) return setStatus(`Fel: ${error.message}`);
 
     setStatus('Sparat.');
+    setPriceInput('');
     await loadBarsAndPrices();
   }
 
-  async function addBar() {
-    const name = barName.trim();
-    const lat = parseFloat(barLat.trim());
-    const lng = parseFloat(barLng.trim());
+  async function resetSelected() {
+    if (!selectedBar) return;
 
-    if (!name) return setStatus('Skriv namn på baren.');
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return setStatus('Skriv giltig lat/lng.');
+    setStatus('Tar bort pris...');
 
-    setStatus('Lägger till bar...');
+    // 1) Ta bort alla priser för baren
+    const { error: e1 } = await supabase.from('prices').delete().eq('bar_id', selectedBar.id);
+    if (e1) return setStatus(`Fel: ${e1.message}`);
 
-    const { error } = await supabase.from('bars').insert({
-      name,
-      lat,
-      lng,
-    });
+    // 2) Ta bort bar-row också så overlay helt försvinner (återgår till “vanlig POI” i kartan)
+    const { error: e2 } = await supabase.from('bars').delete().eq('id', selectedBar.id);
+    if (e2) return setStatus(`Fel: ${e2.message}`);
 
-    if (error) return setStatus(`Fel: ${error.message}`);
-
-    setBarName('');
-    setBarLat('');
-    setBarLng('');
-    setStatus('Bar tillagd.');
-
+    setStatus('Reset klar.');
+    setSelectedBar(null);
     await loadBarsAndPrices();
   }
 
@@ -295,72 +395,51 @@ export default function Page() {
     <div style={{ height: '100dvh', width: '100%', position: 'relative' }}>
       <div id="map" style={{ height: '100%', width: '100%' }} />
 
-      <div
-        style={{
-          position: 'absolute',
-          left: 12,
-          right: 12,
-          bottom: 12,
-          maxWidth: 560,
-          margin: '0 auto',
-        }}
-      >
+      <div style={{ position: 'absolute', left: 12, right: 12, bottom: 12, maxWidth: 560, margin: '0 auto' }}>
         <div style={ui.panel}>
           <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
               <div style={ui.title}>Alkoholfri öl - karta</div>
-              <div style={ui.subtitle}>Priset visas direkt på kartan. Klicka för detaljer.</div>
+              <div style={ui.subtitle}>
+                Klicka på en bar/café i kartan och sätt pris. Markör visas bara när pris finns.
+              </div>
             </div>
-
             <button onClick={loadBarsAndPrices} style={ui.btnGhost}>
               Uppdatera
             </button>
           </div>
 
           {legend}
-
           <div style={ui.hr} />
 
-          <div>
-            <div style={ui.label}>Lägg till bar (MVP)</div>
-            <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
-              <input
-                placeholder="Namn"
-                value={barName}
-                onChange={(e) => setBarName(e.target.value)}
-                style={ui.input}
-              />
+          {candidate ? (
+            <div>
+              <div style={ui.label}>Lägg till pris</div>
+              <div style={{ marginTop: 6, fontWeight: 900, color: '#111827' }}>{candidate.name}</div>
+              <div style={{ marginTop: 2, ...ui.muted }}>Typ: {candidate.kind || 'place'}</div>
+
+              <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
+                <input
+                  inputMode="numeric"
+                  placeholder="Pris (kr)"
+                  value={priceInput}
+                  onChange={(e) => setPriceInput(e.target.value)}
+                  style={ui.input}
+                />
+                <button onClick={savePriceForCandidate} style={ui.btn}>
+                  Spara
+                </button>
+              </div>
+
+              <div style={{ marginTop: 10, ...ui.muted }}>
+                Tips: zooma in och klicka på själva namnet/ikonen för stället.
+              </div>
             </div>
-
-            <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
-              <input
-                inputMode="decimal"
-                placeholder="Lat"
-                value={barLat}
-                onChange={(e) => setBarLat(e.target.value)}
-                style={ui.input}
-              />
-              <input
-                inputMode="decimal"
-                placeholder="Lng"
-                value={barLng}
-                onChange={(e) => setBarLng(e.target.value)}
-                style={ui.input}
-              />
-              <button onClick={addBar} style={ui.btn}>
-                Lägg till
-              </button>
-            </div>
-          </div>
-
-          <div style={ui.hr} />
-
-          {!selectedBar ? (
-            <div style={{ color: '#111827', fontWeight: 800 }}>Välj en bar på kartan.</div>
+          ) : !selectedBar ? (
+            <div style={{ color: '#111827', fontWeight: 800 }}>Klicka på en bar/café i kartan.</div>
           ) : (
             <div>
               <div style={{ fontWeight: 900, fontSize: 15, color: '#111827' }}>{selectedBar.name}</div>
-
               <div style={{ marginTop: 4, fontSize: 13, color: '#111827' }}>
                 Senast pris:{' '}
                 <span style={{ fontWeight: 900 }}>
@@ -377,13 +456,19 @@ export default function Page() {
               <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
                 <input
                   inputMode="numeric"
-                  placeholder="Nytt pris (kr)"
+                  placeholder="Uppdatera pris (kr)"
                   value={priceInput}
                   onChange={(e) => setPriceInput(e.target.value)}
                   style={ui.input}
                 />
-                <button onClick={savePrice} style={ui.btn}>
+                <button onClick={savePriceForSelected} style={ui.btn}>
                   Spara
+                </button>
+              </div>
+
+              <div style={{ marginTop: 10 }}>
+                <button onClick={resetSelected} style={ui.btnDanger}>
+                  Reset (ta bort pris)
                 </button>
               </div>
             </div>
