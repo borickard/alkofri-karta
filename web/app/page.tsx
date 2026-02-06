@@ -21,6 +21,62 @@ function colorForPrice(price?: number) {
   return '#DC2626'; // röd
 }
 
+const ui = {
+  panel: {
+    background: 'rgba(255,255,255,0.98)',
+    border: '1px solid rgba(17,24,39,0.08)',
+    borderRadius: 16,
+    padding: 14,
+    boxShadow: '0 18px 50px rgba(0,0,0,0.18)',
+  } as React.CSSProperties,
+  title: { fontWeight: 800, fontSize: 16, color: '#111827', letterSpacing: -0.2 } as React.CSSProperties,
+  subtitle: { fontSize: 13, color: '#374151', marginTop: 2 } as React.CSSProperties,
+  label: { fontSize: 12, fontWeight: 700, color: '#111827' } as React.CSSProperties,
+  muted: { fontSize: 12, color: '#4B5563' } as React.CSSProperties,
+  hr: { height: 1, background: '#E5E7EB', marginTop: 12, marginBottom: 12 } as React.CSSProperties,
+  input: {
+    width: '100%',
+    padding: '11px 12px',
+    borderRadius: 12,
+    border: '1px solid #E5E7EB',
+    background: '#FFFFFF',
+    color: '#111827',
+    fontSize: 14,
+    outline: 'none',
+  } as React.CSSProperties,
+  btn: {
+    padding: '11px 12px',
+    borderRadius: 12,
+    border: '1px solid #111827',
+    background: '#111827',
+    color: 'white',
+    fontWeight: 800,
+    fontSize: 14,
+  } as React.CSSProperties,
+  btnGhost: {
+    padding: '9px 10px',
+    borderRadius: 12,
+    border: '1px solid #E5E7EB',
+    background: '#F9FAFB',
+    color: '#111827',
+    fontWeight: 700,
+    fontSize: 13,
+  } as React.CSSProperties,
+  badge: (bg: string) =>
+    ({
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 6,
+      padding: '6px 10px',
+      borderRadius: 999,
+      background: bg,
+      fontSize: 12,
+      fontWeight: 700,
+      color: '#111827',
+      border: '1px solid rgba(17,24,39,0.06)',
+    }) as React.CSSProperties,
+};
+
 export default function Page() {
   const mapRef = useRef<MLMap | null>(null);
   const markersRef = useRef(new globalThis.Map<number, Marker>());
@@ -32,7 +88,6 @@ export default function Page() {
   const [priceInput, setPriceInput] = useState<string>('');
   const [status, setStatus] = useState<string>('');
 
-  // NYTT: lägga till bar
   const [barName, setBarName] = useState('');
   const [barLat, setBarLat] = useState('');
   const [barLng, setBarLng] = useState('');
@@ -46,7 +101,7 @@ export default function Page() {
     const map = new maplibregl.Map({
       container: 'map',
       style: 'https://demotiles.maplibre.org/style.json',
-      center: [18.065, 59.333], // Stockholm
+      center: [18.065, 59.333],
       zoom: 12,
     });
 
@@ -103,7 +158,7 @@ export default function Page() {
       el.style.borderRadius = '999px';
       el.style.background = color;
       el.style.border = '2px solid white';
-      el.style.boxShadow = '0 1px 4px rgba(0,0,0,0.25)';
+      el.style.boxShadow = '0 2px 10px rgba(0,0,0,0.25)';
       el.style.cursor = 'pointer';
 
       const marker = new maplibregl.Marker({ element: el })
@@ -149,7 +204,6 @@ export default function Page() {
     await loadBarsAndPrices();
   }
 
-  // NYTT: lägga till bar
   async function addBar() {
     const name = barName.trim();
     const lat = parseFloat(barLat.trim());
@@ -176,6 +230,15 @@ export default function Page() {
     await loadBarsAndPrices();
   }
 
+  const legend = (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+      <span style={ui.badge('#E9F9EF')}>🟢 ≤ 45 kr</span>
+      <span style={ui.badge('#FFF4DF')}>🟡 46-59 kr</span>
+      <span style={ui.badge('#FFE4E4')}>🔴 ≥ 60 kr</span>
+      <span style={ui.badge('#F3F4F6')}>⚪ saknar pris</span>
+    </div>
+  );
+
   return (
     <div style={{ height: '100dvh', width: '100%', position: 'relative' }}>
       <div id="map" style={{ height: '100%', width: '100%' }} />
@@ -186,126 +249,96 @@ export default function Page() {
           left: 12,
           right: 12,
           bottom: 12,
-          background: 'white',
-          borderRadius: 12,
-          padding: 12,
-          boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
-          maxWidth: 520,
+          maxWidth: 560,
           margin: '0 auto',
         }}
       >
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontWeight: 700 }}>Alkoholfri öl - karta</div>
-          <button
-            onClick={loadBarsAndPrices}
-            style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #E5E7EB', background: '#F9FAFB' }}
-          >
-            Uppdatera
-          </button>
-        </div>
+        <div style={ui.panel}>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <div style={ui.title}>Alkoholfri öl - karta</div>
+              <div style={ui.subtitle}>Klicka på en bar för pris. Uppdatera när du ser en meny.</div>
+            </div>
 
-        {/* NYTT: lägga till bar */}
-        <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid #E5E7EB' }}>
-          <div style={{ fontWeight: 700, fontSize: 13 }}>Lägg till bar (MVP)</div>
-
-          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-            <input
-              placeholder="Namn"
-              value={barName}
-              onChange={(e) => setBarName(e.target.value)}
-              style={{ flex: 1, padding: 10, borderRadius: 10, border: '1px solid #E5E7EB' }}
-            />
-          </div>
-
-          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-            <input
-              inputMode="decimal"
-              placeholder="Lat (t.ex. 59.333)"
-              value={barLat}
-              onChange={(e) => setBarLat(e.target.value)}
-              style={{ flex: 1, padding: 10, borderRadius: 10, border: '1px solid #E5E7EB' }}
-            />
-            <input
-              inputMode="decimal"
-              placeholder="Lng (t.ex. 18.065)"
-              value={barLng}
-              onChange={(e) => setBarLng(e.target.value)}
-              style={{ flex: 1, padding: 10, borderRadius: 10, border: '1px solid #E5E7EB' }}
-            />
-            <button
-              onClick={addBar}
-              style={{
-                padding: '10px 12px',
-                borderRadius: 10,
-                border: '1px solid #111827',
-                background: '#111827',
-                color: 'white',
-                fontWeight: 700,
-              }}
-            >
-              Lägg till
+            <button onClick={loadBarsAndPrices} style={ui.btnGhost}>
+              Uppdatera
             </button>
           </div>
-        </div>
 
-        <div style={{ marginTop: 10, fontSize: 12, color: '#374151' }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginRight: 10 }}>
-            <span style={{ width: 10, height: 10, borderRadius: 999, background: '#16A34A', display: 'inline-block' }} />
-            ≤ 45 kr
-          </span>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginRight: 10 }}>
-            <span style={{ width: 10, height: 10, borderRadius: 999, background: '#F59E0B', display: 'inline-block' }} />
-            46-59 kr
-          </span>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginRight: 10 }}>
-            <span style={{ width: 10, height: 10, borderRadius: 999, background: '#DC2626', display: 'inline-block' }} />
-            ≥ 60 kr
-          </span>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ width: 10, height: 10, borderRadius: 999, background: '#9CA3AF', display: 'inline-block' }} />
-            Saknar pris
-          </span>
-        </div>
+          {legend}
 
-        {!selectedBar ? (
-          <div style={{ marginTop: 10 }}>Klicka på en bar på kartan.</div>
-        ) : (
-          <div style={{ marginTop: 10 }}>
-            <div style={{ fontWeight: 700 }}>{selectedBar.name}</div>
-            <div style={{ fontSize: 13, marginTop: 4 }}>
-              Senast pris:{' '}
-              {latestPriceForSelected ? `${latestPriceForSelected.price_sek} kr` : 'saknas'}
-              {latestPriceForSelected ? ` (${new Date(latestPriceForSelected.created_at).toLocaleDateString('sv-SE')})` : ''}
+          <div style={ui.hr} />
+
+          <div>
+            <div style={ui.label}>Lägg till bar (MVP)</div>
+            <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
+              <input
+                placeholder="Namn"
+                value={barName}
+                onChange={(e) => setBarName(e.target.value)}
+                style={ui.input}
+              />
             </div>
 
-            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+            <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
               <input
-                inputMode="numeric"
-                placeholder="Pris (kr)"
-                value={priceInput}
-                onChange={(e) => setPriceInput(e.target.value)}
-                style={{ flex: 1, padding: 10, borderRadius: 10, border: '1px solid #E5E7EB' }}
+                inputMode="decimal"
+                placeholder="Lat"
+                value={barLat}
+                onChange={(e) => setBarLat(e.target.value)}
+                style={ui.input}
               />
-              <button
-                onClick={savePrice}
-                style={{
-                  padding: '10px 12px',
-                  borderRadius: 10,
-                  border: '1px solid #111827',
-                  background: '#111827',
-                  color: 'white',
-                  fontWeight: 700,
-                }}
-              >
-                Spara
+              <input
+                inputMode="decimal"
+                placeholder="Lng"
+                value={barLng}
+                onChange={(e) => setBarLng(e.target.value)}
+                style={ui.input}
+              />
+              <button onClick={addBar} style={ui.btn}>
+                Lägg till
               </button>
             </div>
-
-            {status ? <div style={{ marginTop: 8, fontSize: 13 }}>{status}</div> : null}
           </div>
-        )}
 
-        {!selectedBar && status ? <div style={{ marginTop: 8, fontSize: 13 }}>{status}</div> : null}
+          <div style={ui.hr} />
+
+          {!selectedBar ? (
+            <div style={{ color: '#111827', fontWeight: 700 }}>Välj en bar på kartan.</div>
+          ) : (
+            <div>
+              <div style={{ fontWeight: 900, fontSize: 15, color: '#111827' }}>{selectedBar.name}</div>
+
+              <div style={{ marginTop: 4, fontSize: 13, color: '#111827' }}>
+                Senast pris:{' '}
+                <span style={{ fontWeight: 900 }}>
+                  {latestPriceForSelected ? `${latestPriceForSelected.price_sek} kr` : 'saknas'}
+                </span>
+                {latestPriceForSelected ? (
+                  <span style={{ color: '#6B7280' }}>
+                    {' '}
+                    ({new Date(latestPriceForSelected.created_at).toLocaleDateString('sv-SE')})
+                  </span>
+                ) : null}
+              </div>
+
+              <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
+                <input
+                  inputMode="numeric"
+                  placeholder="Nytt pris (kr)"
+                  value={priceInput}
+                  onChange={(e) => setPriceInput(e.target.value)}
+                  style={ui.input}
+                />
+                <button onClick={savePrice} style={ui.btn}>
+                  Spara
+                </button>
+              </div>
+            </div>
+          )}
+
+          {status ? <div style={{ marginTop: 10, ...ui.muted }}>{status}</div> : null}
+        </div>
       </div>
     </div>
   );
