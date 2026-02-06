@@ -13,7 +13,7 @@ type CandidatePlace = {
   name: string;
   lat: number;
   lng: number;
-  kind: string; // bar/cafe/restaurant/pub/etc
+  kind: string;
 };
 
 const supabase = createClient(
@@ -100,7 +100,6 @@ const ui = {
 };
 
 function pickCandidateFromFeatures(features: any[], fallbackLngLat: { lng: number; lat: number }): CandidatePlace | null {
-  // Heuristik: välj första feature som ser ut som “place/poi” och liknar café/bar/restaurang.
   const wanted = new Set(['bar', 'cafe', 'restaurant', 'pub', 'fast_food', 'biergarten']);
 
   for (const f of features) {
@@ -117,7 +116,6 @@ function pickCandidateFromFeatures(features: any[], fallbackLngLat: { lng: numbe
     const kind = wanted.has(cls) ? cls : '';
 
     if (looksLikePoi && (kind || /bar|cafe|kafé|café|restaurant|pub/i.test(cls)) && name) {
-      // koordinat: använd feature geometry om det är point annars fallback klickposition
       let lng = fallbackLngLat.lng;
       let lat = fallbackLngLat.lat;
 
@@ -153,8 +151,6 @@ export default function Page() {
   }, [selectedBar, latestPrices]);
 
   useEffect(() => {
-    // MapTiler Streets style (MapLibre style.json)
-    // Docs: MapTiler Maps API requires key.  [oai_citation:4‡docs.maptiler.com](https://docs.maptiler.com/cloud/api/maps/?utm_source=chatgpt.com)
     const style = maptilerKey
       ? `https://api.maptiler.com/maps/streets-v2/style.json?key=${maptilerKey}`
       : 'https://demotiles.maplibre.org/style.json';
@@ -170,7 +166,6 @@ export default function Page() {
     mapRef.current = map;
 
     const onClick = (e: MapMouseEvent) => {
-      // Klicka på POI i kartan: plocka feature vid punkten
       const m = mapRef.current;
       if (!m) return;
 
@@ -183,7 +178,6 @@ export default function Page() {
         setPriceInput('');
         setStatus('');
       } else {
-        // Om man klickar “tomt”: stäng candidate
         setCandidate(null);
       }
     };
@@ -234,7 +228,7 @@ export default function Page() {
     for (const b of onlyPricedBars) {
       const lp = pricesMap.get(b.id);
       const price = lp?.price_sek;
-      if (!price) continue; // visas inte om ingen prisrapport finns
+      if (!price) continue;
 
       const ringColor = colorForPrice(price);
       const bg = bgForPrice(price);
@@ -298,14 +292,11 @@ export default function Page() {
   }, []);
 
   useEffect(() => {
-    // Visa bara markörer för ställen med pris
     renderMarkers(bars, latestPrices);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bars, latestPrices]);
 
   async function ensureBarForCandidate(c: CandidatePlace): Promise<Bar | null> {
-    // Enkel MVP: skapa alltid en “bar” i vår DB med name+lat+lng.
-    // (Kan bli dubblering; det löser vi senare med place-id när du vill.)
     const { data, error } = await supabase
       .from('bars')
       .insert({ name: c.name, lat: c.lat, lng: c.lng })
@@ -369,11 +360,9 @@ export default function Page() {
 
     setStatus('Tar bort pris...');
 
-    // 1) Ta bort alla priser för baren
     const { error: e1 } = await supabase.from('prices').delete().eq('bar_id', selectedBar.id);
     if (e1) return setStatus(`Fel: ${e1.message}`);
 
-    // 2) Ta bort bar-row också så overlay helt försvinner (återgår till “vanlig POI” i kartan)
     const { error: e2 } = await supabase.from('bars').delete().eq('id', selectedBar.id);
     if (e2) return setStatus(`Fel: ${e2.message}`);
 
