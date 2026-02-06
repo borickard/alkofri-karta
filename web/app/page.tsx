@@ -27,9 +27,15 @@ export default function Page() {
 
   const [bars, setBars] = useState<Bar[]>([]);
   const [latestPrices, setLatestPrices] = useState(() => new globalThis.Map<number, LatestPrice>());
+
   const [selectedBar, setSelectedBar] = useState<Bar | null>(null);
   const [priceInput, setPriceInput] = useState<string>('');
   const [status, setStatus] = useState<string>('');
+
+  // NYTT: lägga till bar
+  const [barName, setBarName] = useState('');
+  const [barLat, setBarLat] = useState('');
+  const [barLng, setBarLng] = useState('');
 
   const latestPriceForSelected = useMemo(() => {
     if (!selectedBar) return undefined;
@@ -143,6 +149,33 @@ export default function Page() {
     await loadBarsAndPrices();
   }
 
+  // NYTT: lägga till bar
+  async function addBar() {
+    const name = barName.trim();
+    const lat = parseFloat(barLat.trim());
+    const lng = parseFloat(barLng.trim());
+
+    if (!name) return setStatus('Skriv namn på baren.');
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return setStatus('Skriv giltig lat/lng.');
+
+    setStatus('Lägger till bar...');
+
+    const { error } = await supabase.from('bars').insert({
+      name,
+      lat,
+      lng,
+    });
+
+    if (error) return setStatus(`Fel: ${error.message}`);
+
+    setBarName('');
+    setBarLat('');
+    setBarLng('');
+    setStatus('Bar tillagd.');
+
+    await loadBarsAndPrices();
+  }
+
   return (
     <div style={{ height: '100dvh', width: '100%', position: 'relative' }}>
       <div id="map" style={{ height: '100%', width: '100%' }} />
@@ -169,6 +202,50 @@ export default function Page() {
           >
             Uppdatera
           </button>
+        </div>
+
+        {/* NYTT: lägga till bar */}
+        <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid #E5E7EB' }}>
+          <div style={{ fontWeight: 700, fontSize: 13 }}>Lägg till bar (MVP)</div>
+
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <input
+              placeholder="Namn"
+              value={barName}
+              onChange={(e) => setBarName(e.target.value)}
+              style={{ flex: 1, padding: 10, borderRadius: 10, border: '1px solid #E5E7EB' }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <input
+              inputMode="decimal"
+              placeholder="Lat (t.ex. 59.333)"
+              value={barLat}
+              onChange={(e) => setBarLat(e.target.value)}
+              style={{ flex: 1, padding: 10, borderRadius: 10, border: '1px solid #E5E7EB' }}
+            />
+            <input
+              inputMode="decimal"
+              placeholder="Lng (t.ex. 18.065)"
+              value={barLng}
+              onChange={(e) => setBarLng(e.target.value)}
+              style={{ flex: 1, padding: 10, borderRadius: 10, border: '1px solid #E5E7EB' }}
+            />
+            <button
+              onClick={addBar}
+              style={{
+                padding: '10px 12px',
+                borderRadius: 10,
+                border: '1px solid #111827',
+                background: '#111827',
+                color: 'white',
+                fontWeight: 700,
+              }}
+            >
+              Lägg till
+            </button>
+          </div>
         </div>
 
         <div style={{ marginTop: 10, fontSize: 12, color: '#374151' }}>
@@ -227,6 +304,8 @@ export default function Page() {
             {status ? <div style={{ marginTop: 8, fontSize: 13 }}>{status}</div> : null}
           </div>
         )}
+
+        {!selectedBar && status ? <div style={{ marginTop: 8, fontSize: 13 }}>{status}</div> : null}
       </div>
     </div>
   );
