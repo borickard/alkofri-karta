@@ -21,6 +21,13 @@ function colorForPrice(price?: number) {
   return '#DC2626'; // röd
 }
 
+function bgForPrice(price?: number) {
+  if (!price) return '#F3F4F6';
+  if (price <= 45) return '#E9F9EF';
+  if (price <= 59) return '#FFF4DF';
+  return '#FFE4E4';
+}
+
 const ui = {
   panel: {
     background: 'rgba(255,255,255,0.98)',
@@ -150,22 +157,67 @@ export default function Page() {
 
     for (const b of barsToRender) {
       const lp = pricesMap.get(b.id);
-      const color = colorForPrice(lp?.price_sek);
+      const price = lp?.price_sek;
 
-      const el = document.createElement('div');
-      el.style.width = '14px';
-      el.style.height = '14px';
+      const ringColor = colorForPrice(price);
+      const bg = bgForPrice(price);
+
+      // Markör som "pill" med pris
+      const el = document.createElement('button');
+      el.type = 'button';
+
+      el.style.display = 'inline-flex';
+      el.style.alignItems = 'center';
+      el.style.justifyContent = 'center';
+      el.style.gap = '6px';
+
+      el.style.minWidth = '44px';
+      el.style.height = '28px';
+      el.style.padding = '0 10px';
+
       el.style.borderRadius = '999px';
-      el.style.background = color;
-      el.style.border = '2px solid white';
-      el.style.boxShadow = '0 2px 10px rgba(0,0,0,0.25)';
+      el.style.border = `2px solid ${ringColor}`;
+      el.style.background = bg;
+
+      el.style.boxShadow = '0 8px 20px rgba(0,0,0,0.18)';
       el.style.cursor = 'pointer';
 
-      const marker = new maplibregl.Marker({ element: el })
+      el.style.fontWeight = '900';
+      el.style.fontSize = '12px';
+      el.style.color = '#111827';
+      el.style.fontFamily = 'system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif';
+
+      el.style.userSelect = 'none';
+
+      // Text i markören
+      el.textContent = price ? `${price}` : '—';
+
+      // Liten "pin"-triangel under (pseudo)
+      const tip = document.createElement('div');
+      tip.style.position = 'absolute';
+      tip.style.left = '50%';
+      tip.style.bottom = '-7px';
+      tip.style.width = '10px';
+      tip.style.height = '10px';
+      tip.style.background = bg;
+      tip.style.transform = 'translateX(-50%) rotate(45deg)';
+      tip.style.borderRight = `2px solid ${ringColor}`;
+      tip.style.borderBottom = `2px solid ${ringColor}`;
+      tip.style.borderLeft = '0';
+      tip.style.borderTop = '0';
+      tip.style.boxShadow = '0 8px 20px rgba(0,0,0,0.08)';
+
+      // wrapper för att tip ska funka
+      const wrap = document.createElement('div');
+      wrap.style.position = 'relative';
+      wrap.appendChild(el);
+      wrap.appendChild(tip);
+
+      const marker = new maplibregl.Marker({ element: wrap, anchor: 'bottom' })
         .setLngLat([b.lng, b.lat])
         .addTo(map);
 
-      el.onclick = () => {
+      wrap.onclick = () => {
         setSelectedBar(b);
         setPriceInput('');
         setStatus('');
@@ -257,7 +309,7 @@ export default function Page() {
           <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
               <div style={ui.title}>Alkoholfri öl - karta</div>
-              <div style={ui.subtitle}>Klicka på en bar för pris. Uppdatera när du ser en meny.</div>
+              <div style={ui.subtitle}>Priset visas direkt på kartan. Klicka för detaljer.</div>
             </div>
 
             <button onClick={loadBarsAndPrices} style={ui.btnGhost}>
@@ -304,7 +356,7 @@ export default function Page() {
           <div style={ui.hr} />
 
           {!selectedBar ? (
-            <div style={{ color: '#111827', fontWeight: 700 }}>Välj en bar på kartan.</div>
+            <div style={{ color: '#111827', fontWeight: 800 }}>Välj en bar på kartan.</div>
           ) : (
             <div>
               <div style={{ fontWeight: 900, fontSize: 15, color: '#111827' }}>{selectedBar.name}</div>
