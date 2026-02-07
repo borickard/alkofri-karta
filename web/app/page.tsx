@@ -6,7 +6,15 @@ import type { Map as MLMap, MapMouseEvent } from 'maplibre-gl';
 import { createClient } from '@supabase/supabase-js';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-type Bar = { id: number; name: string; lat: number; lng: number };
+type Bar = {
+  id: number;
+  name: string;
+  lat: number;
+  lng: number;
+  source?: string | null;
+  source_id?: string | null;
+};
+
 type LatestPrice = { bar_id: number; price_sek: number; created_at: string };
 
 type CandidatePlace = {
@@ -14,6 +22,8 @@ type CandidatePlace = {
   lat: number;
   lng: number;
   kind: string;
+  source: 'maptiler';
+  source_id: string | null;
 };
 
 const supabase = createClient(
@@ -99,35 +109,80 @@ const ui = {
     }) as React.CSSProperties,
 };
 
-function pickCandidateFromFeatures(features: any[], fallbackLngLat: { lng: number; lat: number }): CandidatePlace | null {
+function pickBestPoi(
+  features: any[],
+  map: MLMap,
+  clickPoint: { x: number; y: number }
+): CandidatePlace | null {
   const wanted = new Set(['bar', 'cafe', 'restaurant', 'pub', 'fast_food', 'biergarten']);
+
+  let best: { cand: CandidatePlace; dist2: number } | null = null;
 
   for (const f of features) {
     const props = (f && f.properties) || {};
-    const layerId = f?.layer?.id ? String(f.layer.id) : '';
-    const cls = String(props.class ?? props.category ?? props.type ?? props.kind ?? '').toLowerCase();
+    const layerId = String(f?.layer?.id ?? '').toLowerCase();
+
     const name = String(props.name ?? props['name:sv'] ?? props['name:en'] ?? '').trim();
+    if (!name) continue;
 
-    const looksLikePoi =
-      layerId.toLowerCase().includes('poi') ||
-      layerId.toLowerCase().includes('place') ||
-      layerId.toLowerCase().includes('label');
+    const cls = String(props.class ?? props.category ?? props.type ?? props.kind ?? '').toLowerCase();
+    const subclass = String(props.subclass ?? '').toLowerCase();
+    const maki = String(props.maki ?? '').toLowerCase();
 
-    const kind = wanted.has(cls) ? cls : '';
+    const looksLikePoiLayer =
+      layerId.includes('poi') || layerId.includes('poi_label') || layerId.includes('points-of-interest');
 
-    if (looksLikePoi && (kind || /bar|cafe|kafé|café|restaurant|pub/i.test(cls)) && name) {
-      let lng = fallbackLngLat.lng;
-      let lat = fallbackLngLat.lat;
+    const looksLikeFoodDrink =
+      wanted.has(cls) ||
+      wanted.has(subclass) ||
+      wanted.has(maki) ||
+      /bar|cafe|kafé|café|restaurant|pub|bistro|brasserie|tap|brew/i.test(`${cls} ${subclass} ${maki} ${name}`);
 
-      if (f.geometry?.type === 'Point' && Array.isArray(f.geometry.coordinates)) {
-        lng = f.geometry.coordinates[0];
-        lat = f.geometry.coordinates[1];
-      }
+    if (!looksLikePoiLayer && !looksLikeFoodDrink) continue;
 
-      return { name, lat, lng, kind: kind || cls || 'place' };
-    }
+    // Viktigt: använd bara riktiga Point-POIs (labels/polygoner ger off koordinat)
+    if (f.geometry?.type !== 'Point' || !Array.isArray(f.geometry.coordinates)) continue;
+
+    const [lng, lat] = f.geometry.coordinates as [number, number];
+
+    // välj närmaste POI till klicket (i pixlar)
+    const pr = map.project([lng, lat]);
+    const dx = pr.x - clickPoint.x;
+    const dy = pr.y - clickPoint.y;
+    const dist2 = dx * dx + dy * dy;
+
+    const rawId =
+      props.osm_id ??
+      props.osmId ??
+      props.id ??
+      props.feature_id ??
+      props.featureId ??
+      props['@id'] ??
+      f?.id ??
+      null;
+
+    const kind =
+      wanted.has(cls)
+        ? cls
+        : wanted.has(subclass)
+        ? subclass
+        : wanted.has(maki)
+        ? maki
+        : cls || subclass || maki || 'place';
+
+    const cand: CandidatePlace = {
+      name,
+      kind,
+      source: 'maptiler',
+      source_id: rawId == null ? null : String(rawId),
+      lat,
+      lng,
+    };
+
+    if (!best || dist2 < best.dist2) best = { cand, dist2 };
   }
-  return null;
+
+  return best?.cand ?? null;
 }
 
 export default function Page() {
@@ -145,7 +200,6 @@ export default function Page() {
 
   const maptilerKey = process.env.NEXT_PUBLIC_MAPTILER_KEY;
   const maptilerStatus = maptilerKey ? `MapTiler: ON (${maptilerKey.slice(0, 6)}...)` : 'MapTiler: OFF';
-
 
   const latestPriceForSelected = useMemo(() => {
     if (!selectedBar) return undefined;
@@ -171,8 +225,17 @@ export default function Page() {
       const m = mapRef.current;
       if (!m) return;
 
-      const features = m.queryRenderedFeatures(e.point) as any[];
-      const cand = pickCandidateFromFeatures(features, e.lngLat);
+      const p = e.point;
+      const pad = 10;
+
+      const features = m.queryRenderedFeatures(
+        [
+          [p.x - pad, p.y - pad],
+          [p.x + pad, p.y + pad],
+        ] as any
+      ) as any[];
+
+      const cand = pickBestPoi(features, m, p);
 
       if (cand) {
         setCandidate(cand);
@@ -199,11 +262,11 @@ export default function Page() {
 
     const { data: barsData, error: barsErr } = await supabase
       .from('bars')
-      .select('id,name,lat,lng')
+      .select('id,name,lat,lng,source,source_id')
       .order('id', { ascending: true });
 
     if (barsErr) return setStatus(`Fel: ${barsErr.message}`);
-    setBars(barsData ?? []);
+    setBars((barsData ?? []) as Bar[]);
 
     const { data: pricesData, error: pricesErr } = await supabase
       .from('prices')
@@ -220,14 +283,14 @@ export default function Page() {
     setLatestPrices(m);
   }
 
-  function renderMarkers(onlyPricedBars: Bar[], pricesMap: globalThis.Map<number, LatestPrice>) {
+  function renderPriceMarkers(allBars: Bar[], pricesMap: globalThis.Map<number, LatestPrice>) {
     const map = mapRef.current;
     if (!map) return;
 
     for (const marker of markersRef.current.values()) marker.remove();
     markersRef.current.clear();
 
-    for (const b of onlyPricedBars) {
+    for (const b of allBars) {
       const lp = pricesMap.get(b.id);
       const price = lp?.price_sek;
       if (!price) continue;
@@ -255,6 +318,7 @@ export default function Page() {
       pill.style.color = '#111827';
       pill.style.fontFamily = 'system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif';
       pill.style.userSelect = 'none';
+      pill.style.whiteSpace = 'nowrap';
 
       const tip = document.createElement('div');
       tip.style.position = 'absolute';
@@ -270,6 +334,11 @@ export default function Page() {
 
       const wrap = document.createElement('div');
       wrap.style.position = 'relative';
+      wrap.style.display = 'inline-block';
+      wrap.style.width = 'fit-content';
+      wrap.style.height = 'fit-content';
+      wrap.style.lineHeight = '0';
+
       wrap.appendChild(pill);
       wrap.appendChild(tip);
 
@@ -294,21 +363,30 @@ export default function Page() {
   }, []);
 
   useEffect(() => {
-    renderMarkers(bars, latestPrices);
+    renderPriceMarkers(bars, latestPrices);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bars, latestPrices]);
 
   async function ensureBarForCandidate(c: CandidatePlace): Promise<Bar | null> {
+    const payload = {
+      name: c.name,
+      lat: c.lat,
+      lng: c.lng,
+      source: 'maptiler',
+      source_id: c.source_id ?? `fallback-${c.name}-${c.lat.toFixed(6)}-${c.lng.toFixed(6)}`,
+    };
+
     const { data, error } = await supabase
       .from('bars')
-      .insert({ name: c.name, lat: c.lat, lng: c.lng })
-      .select('id,name,lat,lng')
+      .upsert(payload, { onConflict: 'source,source_id' })
+      .select('id,name,lat,lng,source,source_id')
       .single();
 
     if (error) {
       setStatus(`Fel: ${error.message}`);
       return null;
     }
+
     return data as Bar;
   }
 
@@ -391,9 +469,7 @@ export default function Page() {
           <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
               <div style={ui.title}>Alkoholfri öl - karta</div>
-                <div style={ui.subtitle}>
-                  {maptilerStatus}
-                </div>
+              <div style={ui.subtitle}>Vad kostar en alkoholfri öl?</div>
             </div>
             <button onClick={loadBarsAndPrices} style={ui.btnGhost}>
               Uppdatera
@@ -407,7 +483,10 @@ export default function Page() {
             <div>
               <div style={ui.label}>Lägg till pris</div>
               <div style={{ marginTop: 6, fontWeight: 900, color: '#111827' }}>{candidate.name}</div>
-              <div style={{ marginTop: 2, ...ui.muted }}>Typ: {candidate.kind || 'place'}</div>
+              <div style={{ marginTop: 2, ...ui.muted }}>
+                Typ: {candidate.kind || 'place'}
+                {candidate.source_id ? `, id: ${candidate.source_id}` : ''}
+              </div>
 
               <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
                 <input
@@ -421,16 +500,13 @@ export default function Page() {
                   Spara
                 </button>
               </div>
-
-              <div style={{ marginTop: 10, ...ui.muted }}>
-                Tips: zooma in och klicka på själva namnet/ikonen för stället.
-              </div>
             </div>
           ) : !selectedBar ? (
             <div style={{ color: '#111827', fontWeight: 800 }}>Klicka på en bar/café i kartan.</div>
           ) : (
             <div>
               <div style={{ fontWeight: 900, fontSize: 15, color: '#111827' }}>{selectedBar.name}</div>
+
               <div style={{ marginTop: 4, fontSize: 13, color: '#111827' }}>
                 Senast pris:{' '}
                 <span style={{ fontWeight: 900 }}>
