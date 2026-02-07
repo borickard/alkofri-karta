@@ -514,8 +514,8 @@ export default function Page() {
         <div style={ui.panel}>
           <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
-              <div style={ui.title}>Alkoholfri öl - karta</div>
-              <div style={ui.subtitle}>{maptilerStatus}</div>
+              <div style={ui.title}>Alkoholfri öl-kartan</div>
+              <div style={ui.subtitle}>Hitta billig alkoholfri öl i Sverige</div>
             </div>
             <button onClick={loadBarsAndPrices} style={ui.btnGhost}>
               Uppdatera
