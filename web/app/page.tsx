@@ -109,6 +109,20 @@ const ui = {
     }) as React.CSSProperties,
 };
 
+function extractStableIdFromFeature(props: any, feature: any): string | null {
+  const raw =
+    props.osm_id ??
+    props.osmId ??
+    props.id ??
+    props.feature_id ??
+    props.featureId ??
+    props['@id'] ??
+    feature?.id ??
+    null;
+
+  return raw === null || raw === undefined ? null : String(raw);
+}
+
 function pickBestPoi(
   features: any[],
   map: MLMap,
@@ -140,7 +154,7 @@ function pickBestPoi(
 
     if (!looksLikePoiLayer && !looksLikeFoodDrink) continue;
 
-    // Viktigt: använd bara riktiga Point-POIs (labels/polygoner ger off koordinat)
+    // Använd bara riktiga Point-POIs
     if (f.geometry?.type !== 'Point' || !Array.isArray(f.geometry.coordinates)) continue;
 
     const [lng, lat] = f.geometry.coordinates as [number, number];
@@ -151,15 +165,7 @@ function pickBestPoi(
     const dy = pr.y - clickPoint.y;
     const dist2 = dx * dx + dy * dy;
 
-    const rawId =
-      props.osm_id ??
-      props.osmId ??
-      props.id ??
-      props.feature_id ??
-      props.featureId ??
-      props['@id'] ??
-      f?.id ??
-      null;
+    const rawId = extractStableIdFromFeature(props, f);
 
     const kind =
       wanted.has(cls)
@@ -174,7 +180,7 @@ function pickBestPoi(
       name,
       kind,
       source: 'maptiler',
-      source_id: rawId == null ? null : String(rawId),
+      source_id: rawId,
       lat,
       lng,
     };
@@ -226,7 +232,7 @@ export default function Page() {
       if (!m) return;
 
       const p = e.point;
-      const pad = 10;
+      const pad = 30; // större "hitbox" så vi hittar POI-point även om label flyttats
 
       const features = m.queryRenderedFeatures(
         [
@@ -292,66 +298,106 @@ export default function Page() {
 
     for (const b of allBars) {
       const lp = pricesMap.get(b.id);
-      const price = lp?.price_sek;
-      if (!price) continue;
+      if (!lp) continue;
 
+      const price = lp.price_sek;
       const ringColor = colorForPrice(price);
       const bg = bgForPrice(price);
 
-      const pill = document.createElement('button');
-      pill.type = 'button';
-      pill.textContent = String(price);
+      // ---------- wrapper ----------
+      const wrap = document.createElement('div');
+      wrap.style.display = 'flex';
+      wrap.style.flexDirection = 'column';
+      wrap.style.alignItems = 'center';
+      wrap.style.gap = '4px';
+      wrap.style.pointerEvents = 'auto';
 
+      // ---------- name label (hidden by default) ----------
+      const name = document.createElement('div');
+      name.textContent = b.name;
+      name.style.maxWidth = '160px';
+      name.style.padding = '4px 8px';
+      name.style.borderRadius = '6px';
+      name.style.background = 'rgba(255,255,255,0.95)';
+      name.style.fontSize = '11px';
+      name.style.fontWeight = '700';
+      name.style.color = '#111827';
+      name.style.boxShadow = '0 4px 10px rgba(0,0,0,0.15)';
+      name.style.textAlign = 'center';
+      name.style.whiteSpace = 'nowrap';
+      name.style.overflow = 'hidden';
+      name.style.textOverflow = 'ellipsis';
+
+      name.style.opacity = '0';
+      name.style.transform = 'translateY(4px)';
+      name.style.transition = 'opacity 120ms ease, transform 120ms ease';
+      name.style.pointerEvents = 'none';
+
+      // ---------- price pill ----------
+      const pill = document.createElement('div');
+      pill.textContent = `${price} kr`;
       pill.style.display = 'inline-flex';
       pill.style.alignItems = 'center';
       pill.style.justifyContent = 'center';
-      pill.style.minWidth = '44px';
+      pill.style.minWidth = '48px';
       pill.style.height = '28px';
       pill.style.padding = '0 10px';
       pill.style.borderRadius = '999px';
       pill.style.border = `2px solid ${ringColor}`;
       pill.style.background = bg;
-      pill.style.boxShadow = '0 8px 20px rgba(0,0,0,0.18)';
-      pill.style.cursor = 'pointer';
-      pill.style.fontWeight = '900';
       pill.style.fontSize = '12px';
+      pill.style.fontWeight = '900';
       pill.style.color = '#111827';
-      pill.style.fontFamily = 'system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif';
+      pill.style.boxShadow = '0 8px 20px rgba(0,0,0,0.18)';
       pill.style.userSelect = 'none';
-      pill.style.whiteSpace = 'nowrap';
+      pill.style.cursor = 'pointer';
 
-      const tip = document.createElement('div');
-      tip.style.position = 'absolute';
-      tip.style.left = '50%';
-      tip.style.bottom = '-7px';
-      tip.style.width = '10px';
-      tip.style.height = '10px';
-      tip.style.background = bg;
-      tip.style.transform = 'translateX(-50%) rotate(45deg)';
-      tip.style.borderRight = `2px solid ${ringColor}`;
-      tip.style.borderBottom = `2px solid ${ringColor}`;
-      tip.style.boxShadow = '0 8px 20px rgba(0,0,0,0.08)';
+      const showName = () => {
+        name.style.opacity = '1';
+        name.style.transform = 'translateY(0px)';
+      };
+      const hideName = () => {
+        name.style.opacity = '0';
+        name.style.transform = 'translateY(4px)';
+      };
 
-      const wrap = document.createElement('div');
-      wrap.style.position = 'relative';
-      wrap.style.display = 'inline-block';
-      wrap.style.width = 'fit-content';
-      wrap.style.height = 'fit-content';
-      wrap.style.lineHeight = '0';
+      // Desktop hover
+      pill.addEventListener('mouseenter', showName);
+      pill.addEventListener('mouseleave', hideName);
 
-      wrap.appendChild(pill);
-      wrap.appendChild(tip);
+      // Mobile tap toggle (plus auto-hide)
+      let pinned = false;
+      pill.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        pinned = !pinned;
+        if (pinned) showName();
+        else hideName();
 
-      const marker = new maplibregl.Marker({ element: wrap, anchor: 'bottom' })
-        .setLngLat([b.lng, b.lat])
-        .addTo(map);
+        if (pinned) {
+          window.setTimeout(() => {
+            pinned = false;
+            hideName();
+          }, 2500);
+        }
+      });
 
-      wrap.onclick = () => {
+      // Om man klickar någon annanstans på markören: öppna edit-läget
+      wrap.addEventListener('click', () => {
         setSelectedBar(b);
         setCandidate(null);
         setPriceInput('');
         setStatus('');
-      };
+      });
+
+      wrap.appendChild(name);
+      wrap.appendChild(pill);
+
+      const marker = new maplibregl.Marker({
+        element: wrap,
+        anchor: 'bottom',
+      })
+        .setLngLat([b.lng, b.lat])
+        .addTo(map);
 
       markersRef.current.set(b.id, marker);
     }
@@ -469,7 +515,7 @@ export default function Page() {
           <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
               <div style={ui.title}>Alkoholfri öl - karta</div>
-              <div style={ui.subtitle}>Vad kostar en alkoholfri öl?</div>
+              <div style={ui.subtitle}>{maptilerStatus}</div>
             </div>
             <button onClick={loadBarsAndPrices} style={ui.btnGhost}>
               Uppdatera
