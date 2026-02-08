@@ -1,0 +1,269 @@
+/* web/app/page.module.css */
+
+:root {
+  --ink: #111827;
+  --muted: #374151;
+  --bg: #ffffff;
+  --panel-bg: #ffffff;
+  --frame: 2px solid var(--ink);
+  --shadow: 2px 2px 0 var(--ink);
+  --shadow-sm: 1px 1px 0 var(--ink);
+  --r: 16px;
+  --r-sm: 12px;
+}
+
+.app {
+  height: 100dvh;
+  width: 100%;
+  background: #f3f4f6;
+  overflow: hidden;
+  position: relative;
+}
+
+.mapWrap {
+  position: absolute;
+  inset: 0;
+}
+
+.map {
+  position: absolute;
+  inset: 0;
+}
+
+.legend {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 10;
+  background: var(--bg);
+  border: var(--frame);
+  box-shadow: var(--shadow);
+  border-radius: var(--r);
+  padding: 10px 12px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 900;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.legendDot {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  border: 2px solid var(--ink);
+  display: inline-block;
+}
+
+.legendText {
+  font-size: 13px;
+}
+
+.locateBtn {
+  position: absolute;
+  right: 12px;
+  top: 72px; /* under map controls */
+  z-index: 10;
+
+  background: var(--bg);
+  border: var(--frame);
+  box-shadow: var(--shadow);
+  border-radius: 999px;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  font-weight: 1000;
+}
+
+.locateBtn:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 var(--ink);
+}
+
+.panel {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  z-index: 10;
+  width: min(420px, calc(100vw - 24px));
+  background: var(--panel-bg);
+  border: var(--frame);
+  box-shadow: var(--shadow);
+  border-radius: var(--r);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.panelCollapsed {
+  padding: 10px 12px;
+}
+
+.panelTitleRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+
+.panelTitle {
+  font-weight: 1000;
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.panelSub {
+  font-weight: 900;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.status {
+  font-weight: 900;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.fieldRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.input {
+  border: var(--frame);
+  box-shadow: var(--shadow-sm);
+  border-radius: var(--r-sm);
+  padding: 10px 12px;
+  font-weight: 900;
+  outline: none;
+  width: 160px;
+
+  color: #111827;          /* ← svart text */
+  background: #ffffff;    /* säkerställ vit bakgrund */
+}
+
+.btnRow {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.btn {
+  border: var(--frame);
+  box-shadow: var(--shadow);
+  border-radius: var(--r-sm);
+  padding: 10px 12px;
+  font-weight: 1000;
+  cursor: pointer;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.btn:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 var(--ink);
+}
+
+.btnDark {
+  background: var(--ink);
+  color: var(--bg);
+}
+
+.btnDanger {
+  background: #b91c1c;
+  color: var(--bg);
+}
+
+.hint {
+  font-weight: 900;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.kv {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-weight: 900;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.history {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.historyItem {
+  border: var(--frame);
+  box-shadow: var(--shadow-sm);
+  border-radius: 14px;
+  padding: 10px 12px;
+  background: var(--bg);
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+
+.historyLeft {
+  font-weight: 1000;
+  color: var(--ink);
+}
+
+.historyRight {
+  font-weight: 900;
+  color: var(--muted);
+}
+
+/* Welcome overlay */
+.welcomeOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  pointer-events: auto;
+}
+
+.welcomeCard {
+  width: min(540px, calc(100vw - 24px));
+  background: var(--bg);
+  border: var(--frame);
+  box-shadow: var(--shadow);
+  border-radius: 18px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.welcomeTitle {
+  font-weight: 1000;
+  color: var(--ink);
+  font-size: 16px;
+}
+
+.welcomeText {
+  font-weight: 900;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.35;
+}
