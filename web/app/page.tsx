@@ -37,6 +37,13 @@ const MAPTILER_KEY = process.env.NEXT_PUBLIC_MAPTILER_KEY!;
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const PRICE_TEXT_ZOOM = 15;
+const DISALLOWED_SHOPS = new Set([
+  'clothes',
+  'fashion',
+  'shoes',
+  'jewelry',
+  'department_store',
+]);
 
 function fmtShort(iso: string) {
   try {
@@ -60,22 +67,139 @@ function colorsForPrice(price: number) {
 }
 
 function pickCandidateFromClick(map: MLMap, e: MapMouseEvent): Candidate | null {
-  // Query features under cursor – MapTiler basemap har POI/features, men id-fält varierar.
   const feats = map.queryRenderedFeatures(e.point);
   if (!feats || feats.length === 0) return null;
 
-  // Försök hitta något med namn
-  const f = feats.find((x: any) => (x?.properties?.name || x?.properties?.Name)) || feats[0];
-  const name = String(f?.properties?.name || f?.properties?.Name || 'Plats').trim();
+  const get = (p: any, ...keys: string[]) => {
+    for (const k of keys) {
+      const v = p?.[k];
+      if (v !== undefined && v !== null && String(v).trim() !== '') return String(v);
+    }
+    return '';
+  };
 
-  // stabilt-ish id: använd feature.id om den finns, annars en hash-ish från layer+name+coords
-  const fid = f?.id !== undefined && f?.id !== null ? String(f.id) : `${f?.layer?.id || 'layer'}:${name}`;
-  const source_id = `mt:${fid}`;
+  const lower = (s: string) => (s || '').toString().trim().toLowerCase();
 
-  const lng = e.lngLat.lng;
-  const lat = e.lngLat.lat;
+  // ---- Rimliga ställen (whitelist) ----
+  const ALLOWED_AMENITY = new Set([
+    'bar',
+    'pub',
+    'restaurant',
+    'cafe',
+    'nightclub',     // nattklubb
+    'theatre',       // ibland konsert/scene
+    'cinema',        // valfritt (ta bort om du vill)
+    'arts_centre',   // kulturhus
+    'fast_food',     // snabbmat
+  ]);
 
-  return { name, lat, lng, source_id };
+  // Ibland ligger venues som "leisure" eller andra fält
+  const ALLOWED_LEISURE = new Set([
+    'music_venue',   // vissa tiles
+    'dance',         // ibland
+  ]);
+
+  const ALLOWED_TOURISM = new Set([
+    'hotel',
+    'hostel',
+    'motel',
+    'guest_house',
+  ]);
+
+  // Om du vill tillåta matbutiker: avkommentera
+  const ALLOWED_SHOPS = new Set<string>([
+    // 'supermarket',
+    // 'convenience',
+  ]);
+
+  // ---- Blocklist (butiker vi inte vill ha) ----
+  const DISALLOWED_SHOPS = new Set([
+    'clothes',
+    'fashion',
+    'shoes',
+    'jewelry',
+    'department_store',
+    'bag',
+    'boutique',
+  ]);
+
+  // Extra: vissa venues kan komma som "class/subclass" utan amenity/tourism
+  const ALLOWED_SUBCLASS = new Set([
+    'nightclub',
+    'music_venue',
+    'concert_hall',
+    'event_venue',
+    'arts_centre',
+    'theatre',
+    'hotel',
+    'hostel',
+    'guest_house',
+    'bar',
+    'pub',
+    'restaurant',
+    'cafe',
+  ]);
+
+  for (const f of feats as any[]) {
+    const props: any = f?.properties || {};
+
+    const name = get(props, 'name', 'Name');
+    if (!name) continue;
+
+    const clazz = lower(get(props, 'class', 'category'));   // t.ex. amenity/shop/tourism
+    const subclass = lower(get(props, 'subclass'));         // t.ex. cafe/bar/hotel/nightclub
+    const amenity = lower(get(props, 'amenity'));           // OSM
+    const shop = lower(get(props, 'shop'));                 // OSM
+    const tourism = lower(get(props, 'tourism'));           // OSM
+    const leisure = lower(get(props, 'leisure'));           // OSM-ish
+    const entertainment = lower(get(props, 'entertainment')); // ibland finns
+
+    // Blocklist först
+    if (shop && DISALLOWED_SHOPS.has(shop)) continue;
+
+    // Whitelist-matchning (lite robust)
+    const isAmenityOk =
+      (amenity && ALLOWED_AMENITY.has(amenity)) ||
+      (clazz === 'amenity' && subclass && (ALLOWED_AMENITY.has(subclass) || ALLOWED_SUBCLASS.has(subclass))) ||
+      (subclass && ALLOWED_AMENITY.has(subclass));
+
+    const isTourismOk =
+      (tourism && ALLOWED_TOURISM.has(tourism)) ||
+      (clazz === 'tourism' && subclass && (ALLOWED_TOURISM.has(subclass) || ALLOWED_SUBCLASS.has(subclass))) ||
+      (subclass && ALLOWED_TOURISM.has(subclass));
+
+    const isShopOk =
+      (shop && ALLOWED_SHOPS.has(shop)) ||
+      (clazz === 'shop' && shop && ALLOWED_SHOPS.has(shop));
+
+    const isLeisureOk =
+      (leisure && ALLOWED_LEISURE.has(leisure)) ||
+      (clazz === 'leisure' && subclass && ALLOWED_SUBCLASS.has(subclass)) ||
+      (subclass && ALLOWED_SUBCLASS.has(subclass));
+
+    const isEntertainmentOk =
+      (entertainment && ALLOWED_SUBCLASS.has(entertainment)) ||
+      (clazz === 'entertainment' && subclass && ALLOWED_SUBCLASS.has(subclass));
+
+    if (!isAmenityOk && !isTourismOk && !isShopOk && !isLeisureOk && !isEntertainmentOk) continue;
+
+    // Stabilt-ish id
+    const fid =
+      f?.id !== undefined && f?.id !== null
+        ? String(f.id)
+        : `${f?.layer?.id || 'layer'}:${String(name).trim()}`;
+
+    const source_id = `mt:${fid}`;
+
+    return {
+      name: String(name).trim(),
+      lat: e.lngLat.lat,
+      lng: e.lngLat.lng,
+      source_id,
+    };
+  }
+
+  return null;
 }
 
 export default function Page() {
@@ -87,6 +211,9 @@ export default function Page() {
 
   const [bars, setBars] = useState<Bar[]>([]);
   const [latestPrices, setLatestPrices] = useState<Map<number, LatestPrice>>(new Map());
+
+  const panelRef = useRef<HTMLDivElement | null>(null);
+
 
   const barsRef = useRef<Bar[]>([]);
   const latestPricesRef = useRef<Map<number, LatestPrice>>(new Map());
@@ -216,7 +343,12 @@ export default function Page() {
     for (const b of allBars) {
       const lp = pricesMap.get(b.id);
       const noNa = Boolean(b.no_na_beer);
+      const showText = (zoomRef.current ?? map.getZoom()) >= PRICE_TEXT_ZOOM;
 
+      // Utzoomat: dölj barer som saknar alkoholfri öl
+      if (!showText && noNa) continue;
+
+      // Inzoomat: dölj helt tomma (varken pris eller no-na)
       if (!lp && !noNa) continue;
 
       const wrap = document.createElement('div');
@@ -328,6 +460,7 @@ export default function Page() {
         setStatus('');
         setPriceInput('');
         loadHistory(b.id).catch(console.error);
+        focusPoint(b.lng, b.lat); // ← LÄGG TILL DENNA RAD
       });
 
       wrap.appendChild(name);
@@ -339,6 +472,20 @@ export default function Page() {
 
       markersRef.current.set(b.id, marker);
     }
+  }
+
+    function focusPoint(lng: number, lat: number) {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const h = map.getContainer().clientHeight || 800;
+    const offsetY = Math.round(h / 6); // flytta center ned -> target hamnar högre (≈ 1/3 från toppen)
+
+    map.easeTo({
+      center: [lng, lat],
+      offset: [0, offsetY],
+      duration: 350,
+    });
   }
 
   async function locateMe() {
@@ -480,6 +627,25 @@ export default function Page() {
   }
 
 
+    useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (!panelOpen) {
+      // återställ padding när panelen är stängd
+      map.setPadding({ top: 0, right: 0, bottom: 0, left: 0 });
+      return;
+    }
+
+    const ph = panelRef.current?.offsetHeight ?? 220;
+    map.setPadding({ top: 0, right: 0, bottom: ph + 24, left: 0 });
+
+    // recenter på vald punkt så pill hamnar runt 1/3 från toppen
+    if (selectedBar) focusPoint(selectedBar.lng, selectedBar.lat);
+    else if (candidate) focusPoint(candidate.lng, candidate.lat);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [panelOpen, selectedBarId, candidate?.source_id]);
+
   useEffect(() => {
     if (!panelOpen) return;
 
@@ -533,6 +699,9 @@ export default function Page() {
       setStatus('');
       setHistory([]);
       setPriceInput('');
+
+      focusPoint(cand.lng, cand.lat); // ← LÄGG TILL DENNA RAD
+
     };
 
     map.on('zoom', onZoom);
@@ -566,7 +735,7 @@ export default function Page() {
 
       {/* Locate me */}
       <button className={styles.locateBtn} onClick={locateMe} aria-label="Hitta min plats" title="Hitta min plats">
-        ⦿
+        ⌖
       </button>
 
       {/* Legend */}
@@ -587,7 +756,7 @@ export default function Page() {
 
       {/* Panel */}
       {panelOpen ? (
-        <div className={styles.panel}>
+        <div ref={panelRef} className={styles.panel}>
           <div className={styles.panelTitleRow}>
             <div>
               <div className={styles.panelTitle}>

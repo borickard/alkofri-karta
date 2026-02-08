@@ -68,38 +68,50 @@
 
 .locateBtn {
   position: absolute;
-  right: 12px;
-  top: 72px; /* under map controls */
+  right: 8px;
+  top: 106px;
   z-index: 10;
 
-  background: var(--bg);
-  border: var(--frame);
-  box-shadow: var(--shadow);
-  border-radius: 999px;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  box-shadow: 0 0 0 1px #0000001a;   /* exakt som du sa */
+  border-radius: 4px;
+
   width: 44px;
   height: 44px;
+
   display: grid;
   place-items: center;
   cursor: pointer;
-  font-weight: 1000;
+
+  color: #000000 !important;        /* svart crosshair */
+  font-size: 18px;
+  font-weight: 900;
+  opacity: 1 !important;
+}
+
+.locateBtn:hover {
+  background: #f9fafb;
 }
 
 .locateBtn:active {
-  transform: translate(1px, 1px);
-  box-shadow: 1px 1px 0 var(--ink);
+  background: #f3f4f6;
 }
 
 .panel {
   position: absolute;
-  left: 12px;
-  bottom: 12px;
+  left: 50%;
+  bottom: 20px;                 /* lyft upp lite */
+  transform: translateX(-50%);  /* centrera */
   z-index: 10;
+
   width: min(420px, calc(100vw - 24px));
   background: var(--panel-bg);
   border: var(--frame);
   box-shadow: var(--shadow);
   border-radius: var(--r);
   padding: 12px;
+
   display: flex;
   flex-direction: column;
   gap: 10px;
