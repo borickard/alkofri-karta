@@ -734,11 +734,19 @@ export default function Page() {
   return (
     <div className={styles.app}>
       <div className={styles.mapWrap}>
+
+        <div className={styles.topLeftBrand}>
+          <a href="https://www.iq.se" target="_blank" rel="noopener noreferrer">
+            <img
+              src="/iq_logotype.svg"
+              alt="IQ"
+              className={styles.iqLogo}
+            />
+          </a>
+        </div>
+
         <div ref={mapContainerRef} className={styles.map} />
-
-
       </div>
-
 
 
       {/* Locate me */}
@@ -764,7 +772,7 @@ export default function Page() {
         </div>
       </div>
       ) : null}
-      
+
       {/* Panel */}
       {panelOpen ? (
         <div ref={panelRef} className={styles.panel}>

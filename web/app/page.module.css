@@ -281,3 +281,24 @@
   font-size: 14px;
   line-height: 1.35;
 }
+
+.topLeftBrand {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 20;
+}
+
+.iqLogo {
+  height: 34px;
+  /* mobil */
+  width: auto;
+  display: block;
+}
+
+@media (min-width: 768px) {
+  .iqLogo {
+    height: 56px;
+    /* desktop */
+  }
+}
