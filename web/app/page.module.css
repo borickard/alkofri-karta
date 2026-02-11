@@ -34,15 +34,17 @@
   position: absolute;
   right: 12px;
   bottom: 12px;
-  z-index: 10;
-  background: var(--bg);
-  border: var(--frame);
-  box-shadow: var(--shadow);
-  border-radius: var(--r);
-  padding: 10px 12px;
-  display: flex;
-  gap: 10px;
-  align-items: center;
+  /* istället för 84px */
+  z-index: 30;
+
+  background: #ffffff;
+  border: 1px solid #111827;
+  border-radius: 12px;
+
+  padding: 8px 10px;
+  font-size: 13px;
+
+  box-shadow: 1px 1px 0 #111827;
 }
 
 .legendItem {

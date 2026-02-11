@@ -207,6 +207,7 @@ export default function Page() {
   const mapRef = useRef<MLMap | null>(null);
 
   const zoomRef = useRef<number>(12);
+  const [zoomLevel, setZoomLevel] = useState(12);
   const markersRef = useRef<Map<number, maplibregl.Marker>>(new Map());
 
   const [bars, setBars] = useState<Bar[]>([]);
@@ -678,9 +679,12 @@ export default function Page() {
     map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-left');
 
     mapRef.current = map;
+    setZoomLevel(map.getZoom());
 
     const onZoom = () => {
-      zoomRef.current = map.getZoom();
+      const z = map.getZoom();
+      zoomRef.current = z;
+      setZoomLevel(z);
       renderMarkers(barsRef.current, latestPricesRef.current);
     };
 
@@ -731,7 +735,11 @@ export default function Page() {
     <div className={styles.app}>
       <div className={styles.mapWrap}>
         <div ref={mapContainerRef} className={styles.map} />
+
+
       </div>
+
+
 
       {/* Locate me */}
       <button className={styles.locateBtn} onClick={locateMe} aria-label="Hitta min plats" title="Hitta min plats">
@@ -739,6 +747,8 @@ export default function Page() {
       </button>
 
       {/* Legend */}
+      {zoomLevel < PRICE_TEXT_ZOOM ? (
+
       <div className={styles.legend}>
         <div className={styles.legendItem}>
           <span className={styles.legendDot} style={{ background: '#D1FAE5', borderColor: '#065F46' }} />
@@ -753,7 +763,8 @@ export default function Page() {
           <span className={styles.legendText}>Högt (46+)</span>
         </div>
       </div>
-
+      ) : null}
+      
       {/* Panel */}
       {panelOpen ? (
         <div ref={panelRef} className={styles.panel}>
