@@ -31,6 +31,10 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => null);
     if (!body) return jsonError('Ogiltig JSON.');
 
+    const demo = Boolean(body.demo);
+    const barsTable = demo ? 'bars_demo' : 'bars';
+    const pricesTable = demo ? 'prices_demo' : 'prices';
+
     const bar_id = body.bar_id ? Number(body.bar_id) : null;
     const price_sek = Number(body.price_sek);
 
@@ -65,7 +69,7 @@ export async function POST(req: Request) {
       };
 
       const { data: upserted, error: upsertErr } = await supabase
-        .from('bars')
+        .from(barsTable)
         .upsert(payload, { onConflict: 'source,source_id' })
         .select('id')
         .single();
@@ -76,23 +80,21 @@ export async function POST(req: Request) {
 
     if (!finalBarId) return jsonError('Kunde inte hitta/skapa bar.', 500);
 
-    // Pris => tar bort "saknar alkoholfri öl"
     const { error: barUpdErr } = await supabase
-      .from('bars')
+      .from(barsTable)
       .update({ no_na_beer: false, no_na_reported_at: null })
       .eq('id', finalBarId);
 
     if (barUpdErr) return jsonError(`DB: ${barUpdErr.message}`, 500);
 
     const { data: priceRow, error: priceErr } = await supabase
-      .from('prices')
+      .from(pricesTable)
       .insert({ bar_id: finalBarId, price_sek })
       .select('id,bar_id,price_sek,created_at')
       .single();
 
     if (priceErr) return jsonError(`DB: ${priceErr.message}`, 500);
 
-    // Audit (blocka inte användaren om audit failar)
     const { error: auditErr } = await supabase.from('audit_events').insert({
       action: 'insert_price',
       bar_id: finalBarId,
@@ -100,7 +102,7 @@ export async function POST(req: Request) {
       price_sek,
       ip_hash,
       user_agent: userAgent,
-      meta: { via: 'api/price' },
+      meta: { via: 'api/price', demo },
     });
 
     if (auditErr) console.warn('audit insert failed:', auditErr.message);
