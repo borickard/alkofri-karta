@@ -31,6 +31,9 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => null);
     if (!body) return jsonError('Ogiltig JSON.');
 
+    const demo = Boolean(body.demo);
+    const pricesTable = demo ? 'prices_demo' : 'prices';
+
     const bar_id = Number(body.bar_id);
     if (!Number.isFinite(bar_id)) return jsonError('bar_id saknas.');
 
@@ -39,9 +42,8 @@ export async function POST(req: Request) {
     const salt = process.env.IP_HASH_SALT || process.env.ADMIN_PASSWORD || 'fallback_salt';
     const ip_hash = ip ? sha256Hex(`${ip}|${salt}`) : null;
 
-    // Hitta senaste (ej soft-deletade) priset
     const { data: latest, error: latestErr } = await supabase
-      .from('prices')
+      .from(pricesTable)
       .select('id,bar_id,price_sek,created_at,deleted_at')
       .eq('bar_id', bar_id)
       .is('deleted_at', null)
@@ -52,12 +54,10 @@ export async function POST(req: Request) {
     if (latestErr) return jsonError(`DB: ${latestErr.message}`, 500);
     if (!latest?.id) return jsonError('Inget pris att ta bort.', 404);
 
-    // Soft delete
     const ts = new Date().toISOString();
-    const { error: delErr } = await supabase.from('prices').update({ deleted_at: ts }).eq('id', latest.id);
+    const { error: delErr } = await supabase.from(pricesTable).update({ deleted_at: ts }).eq('id', latest.id);
     if (delErr) return jsonError(`DB: ${delErr.message}`, 500);
 
-    // Audit
     const { error: auditErr } = await supabase.from('audit_events').insert({
       action: 'delete_price',
       bar_id,
@@ -65,7 +65,7 @@ export async function POST(req: Request) {
       price_sek: latest.price_sek,
       ip_hash,
       user_agent: userAgent,
-      meta: { via: 'api/report-wrong-price', deleted_at: ts },
+      meta: { via: 'api/report-wrong-price', deleted_at: ts, demo },
     });
     if (auditErr) console.warn('audit insert failed:', auditErr.message);
 

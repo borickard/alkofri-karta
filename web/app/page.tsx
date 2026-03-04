@@ -475,7 +475,7 @@ export default function Page() {
     const r = await fetch('/api/price', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bar_id: selectedBar.id, price_sek: p }),
+      body: JSON.stringify({ bar_id: selectedBar.id, price_sek: p, demo: isDemoMode }),
     });
     const j = await r.json();
     if (!j.ok) { setStatus(`Fel: ${j.error || 'okänt fel'}`); return; }
@@ -709,12 +709,18 @@ export default function Page() {
       {panelOpen ? (
         <div ref={panelRef} className={styles.panel}>
           <div className={styles.panelTitleRow}>
-            <div>
-              <div className={styles.panelTitle}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{
+                fontFamily: 'var(--font-heading)',
+                fontSize: 22,
+                lineHeight: 1.2,
+                color: '#111827',
+                marginBottom: 4,
+              }}>
                 {selectedBar ? selectedBar.name : candidate ? candidate.name : 'Plats'}
               </div>
-              <div className={styles.panelSub}>
-                {selectedBar ? 'Uppdatera pris eller markera saknas' : 'Lägg till pris eller markera saknas'}
+              <div style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: '#111827', marginTop: 4 }}>
+                Vet du vad alkoholfri öl kostar här? Fyll i priset nedan.
               </div>
             </div>
             <button className={styles.btn} onClick={closePanel}>Stäng</button>
@@ -722,6 +728,17 @@ export default function Page() {
 
           {status ? <div className={styles.status}>{status}</div> : null}
 
+          {/* Prissektion */}
+          {selectedBar && latestPrices.get(selectedBar.id) ? (
+            <div style={{
+              fontFamily: 'var(--font-body)',
+              fontSize: 13,
+              color: '#6B7280',
+              marginBottom: 6,
+            }}>
+              Senast rapporterat: <strong style={{ color: '#111827' }}>{latestPrices.get(selectedBar.id)!.price_sek} kr</strong>
+            </div>
+          ) : null}
           <div className={styles.fieldRow}>
             <input
               className={styles.input}
@@ -731,25 +748,12 @@ export default function Page() {
               onChange={(e) => setPriceInput(e.target.value)}
               onKeyDown={onPanelKeyDown}
             />
-            <div className={styles.btnRow}>
-              <button
-                className={`${styles.btn} ${styles.btnDark}`}
-                onClick={() => (selectedBar ? savePriceSelected() : savePriceCandidate())}
-              >
-                Spara pris
-              </button>
-              <button
-                className={styles.btn}
-                onClick={() => (selectedBar ? reportNoNaSelected() : reportNoNaCandidate())}
-              >
-                Saknar alkoholfri öl
-              </button>
-              {selectedBar ? (
-                <button className={`${styles.btn} ${styles.btnDanger}`} onClick={reportWrongPrice}>
-                  Rapportera fel pris
-                </button>
-              ) : null}
-            </div>
+            <button
+              className={`${styles.btn} ${styles.btnDark}`}
+              onClick={() => (selectedBar ? savePriceSelected() : savePriceCandidate())}
+            >
+              Spara pris
+            </button>
           </div>
 
           {selectedBar && history.length ? (
@@ -765,6 +769,67 @@ export default function Page() {
           ) : (
             <div className={styles.hint}>Tips: Enter sparar pris. Escape stänger.</div>
           )}
+
+          {/* Separator */}
+          <div style={{ borderTop: '1px solid #E5E7EB', margin: '12px 0' }} />
+
+          {/* Saknar alkoholfri öl */}
+          <button
+            onClick={() => (selectedBar ? reportNoNaSelected() : reportNoNaCandidate())}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              background: 'none',
+              border: 'none',
+              padding: '4px 0',
+              cursor: 'pointer',
+              fontFamily: 'var(--font-body)',
+              fontSize: 14,
+              color: '#374151',
+              width: '100%',
+              textAlign: 'left',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.color = '#111827')}
+            onMouseLeave={e => (e.currentTarget.style.color = '#374151')}
+          >
+            <span style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 22,
+              height: 22,
+              borderRadius: '999px',
+              border: '2px solid #9CA3AF',
+              fontSize: 11,
+              fontWeight: 900,
+              color: '#6B7280',
+              flexShrink: 0,
+            }}>✕</span>
+            Markera att alkoholfri öl saknas
+          </button>
+
+          {/* Rapportera fel pris */}
+          {selectedBar ? (
+            <div style={{ marginTop: 12, textAlign: 'center' }}>
+              <button
+                onClick={reportWrongPrice}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  cursor: 'pointer',
+                  fontFamily: 'var(--font-body)',
+                  fontSize: 13,
+                  color: '#6B7280',
+                  textDecoration: 'underline',
+                  textUnderlineOffset: 3,
+                }}
+              >
+                Fel pris? Rapportera
+              </button>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -860,7 +925,7 @@ export default function Page() {
                   fontFamily: 'var(--font-body)',
                   fontSize: 13,
                   color: '#fff',
-                  textDecoration: 'none',
+                  textDecoration: 'underline',
                   textUnderlineOffset: 3,
                 }}>
                   Ett initiativ av IQ

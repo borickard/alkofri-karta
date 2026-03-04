@@ -31,8 +31,9 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => null);
     if (!body) return jsonError('Ogiltig JSON.');
 
-    // A) { bar_id: 123 }
-    // B) { name, lat, lng, source_id }
+    const demo = Boolean(body.demo);
+    const barsTable = demo ? 'bars_demo' : 'bars';
+
     const bar_id = body.bar_id ? Number(body.bar_id) : null;
 
     const userAgent = req.headers.get('user-agent') || null;
@@ -63,7 +64,7 @@ export async function POST(req: Request) {
       };
 
       const { data: upserted, error: upsertErr } = await supabase
-        .from('bars')
+        .from(barsTable)
         .upsert(payload, { onConflict: 'source,source_id' })
         .select('id')
         .single();
@@ -77,7 +78,7 @@ export async function POST(req: Request) {
     const ts = new Date().toISOString();
 
     const { error: updErr } = await supabase
-      .from('bars')
+      .from(barsTable)
       .update({ no_na_beer: true, no_na_reported_at: ts })
       .eq('id', finalBarId);
 
@@ -90,7 +91,7 @@ export async function POST(req: Request) {
       price_sek: null,
       ip_hash,
       user_agent: userAgent,
-      meta: { via: 'api/no-na' },
+      meta: { via: 'api/no-na', demo },
     });
 
     if (auditErr) console.warn('audit insert failed:', auditErr.message);
