@@ -80,84 +80,41 @@ function pickCandidateFromClick(map: MLMap, e: MapMouseEvent): Candidate | null 
 
   const lower = (s: string) => (s || '').toString().trim().toLowerCase();
 
-  // ---- Rimliga ställen (whitelist) ----
   const ALLOWED_AMENITY = new Set([
-    'bar',
-    'pub',
-    'restaurant',
-    'cafe',
-    'nightclub',     // nattklubb
-    'theatre',       // ibland konsert/scene
-    'cinema',        // valfritt (ta bort om du vill)
-    'arts_centre',   // kulturhus
-    'fast_food',     // snabbmat
+    'bar', 'pub', 'restaurant', 'cafe', 'nightclub',
+    'theatre', 'cinema', 'arts_centre', 'fast_food',
   ]);
 
-  // Ibland ligger venues som "leisure" eller andra fält
-  const ALLOWED_LEISURE = new Set([
-    'music_venue',   // vissa tiles
-    'dance',         // ibland
-  ]);
+  const ALLOWED_LEISURE = new Set(['music_venue', 'dance']);
+  const ALLOWED_TOURISM = new Set(['hotel', 'hostel', 'motel', 'guest_house']);
+  const ALLOWED_SHOPS = new Set<string>([]);
 
-  const ALLOWED_TOURISM = new Set([
-    'hotel',
-    'hostel',
-    'motel',
-    'guest_house',
-  ]);
-
-  // Om du vill tillåta matbutiker: avkommentera
-  const ALLOWED_SHOPS = new Set<string>([
-    // 'supermarket',
-    // 'convenience',
-  ]);
-
-  // ---- Blocklist (butiker vi inte vill ha) ----
   const DISALLOWED_SHOPS = new Set([
-    'clothes',
-    'fashion',
-    'shoes',
-    'jewelry',
-    'department_store',
-    'bag',
-    'boutique',
+    'clothes', 'fashion', 'shoes', 'jewelry',
+    'department_store', 'bag', 'boutique',
   ]);
 
-  // Extra: vissa venues kan komma som "class/subclass" utan amenity/tourism
   const ALLOWED_SUBCLASS = new Set([
-    'nightclub',
-    'music_venue',
-    'concert_hall',
-    'event_venue',
-    'arts_centre',
-    'theatre',
-    'hotel',
-    'hostel',
-    'guest_house',
-    'bar',
-    'pub',
-    'restaurant',
-    'cafe',
+    'nightclub', 'music_venue', 'concert_hall', 'event_venue',
+    'arts_centre', 'theatre', 'hotel', 'hostel', 'guest_house',
+    'bar', 'pub', 'restaurant', 'cafe',
   ]);
 
   for (const f of feats as any[]) {
     const props: any = f?.properties || {};
-
     const name = get(props, 'name', 'Name');
     if (!name) continue;
 
-    const clazz = lower(get(props, 'class', 'category'));   // t.ex. amenity/shop/tourism
-    const subclass = lower(get(props, 'subclass'));         // t.ex. cafe/bar/hotel/nightclub
-    const amenity = lower(get(props, 'amenity'));           // OSM
-    const shop = lower(get(props, 'shop'));                 // OSM
-    const tourism = lower(get(props, 'tourism'));           // OSM
-    const leisure = lower(get(props, 'leisure'));           // OSM-ish
-    const entertainment = lower(get(props, 'entertainment')); // ibland finns
+    const clazz = lower(get(props, 'class', 'category'));
+    const subclass = lower(get(props, 'subclass'));
+    const amenity = lower(get(props, 'amenity'));
+    const shop = lower(get(props, 'shop'));
+    const tourism = lower(get(props, 'tourism'));
+    const leisure = lower(get(props, 'leisure'));
+    const entertainment = lower(get(props, 'entertainment'));
 
-    // Blocklist först
     if (shop && DISALLOWED_SHOPS.has(shop)) continue;
 
-    // Whitelist-matchning (lite robust)
     const isAmenityOk =
       (amenity && ALLOWED_AMENITY.has(amenity)) ||
       (clazz === 'amenity' && subclass && (ALLOWED_AMENITY.has(subclass) || ALLOWED_SUBCLASS.has(subclass))) ||
@@ -183,19 +140,16 @@ function pickCandidateFromClick(map: MLMap, e: MapMouseEvent): Candidate | null 
 
     if (!isAmenityOk && !isTourismOk && !isShopOk && !isLeisureOk && !isEntertainmentOk) continue;
 
-    // Stabilt-ish id
     const fid =
       f?.id !== undefined && f?.id !== null
         ? String(f.id)
         : `${f?.layer?.id || 'layer'}:${String(name).trim()}`;
 
-    const source_id = `mt:${fid}`;
-
     return {
       name: String(name).trim(),
       lat: e.lngLat.lat,
       lng: e.lngLat.lng,
-      source_id,
+      source_id: `mt:${fid}`,
     };
   }
 
@@ -203,6 +157,7 @@ function pickCandidateFromClick(map: MLMap, e: MapMouseEvent): Candidate | null 
 }
 
 export default function Page() {
+
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MLMap | null>(null);
 
@@ -210,37 +165,49 @@ export default function Page() {
   const [zoomLevel, setZoomLevel] = useState(12);
   const markersRef = useRef<Map<number, maplibregl.Marker>>(new Map());
 
+  const [isDemoMode, setIsDemoMode] = useState(false);
+
+  useEffect(() => {
+    setIsDemoMode(new URLSearchParams(window.location.search).has('demo'));
+  }, []);
+
   const [bars, setBars] = useState<Bar[]>([]);
   const [latestPrices, setLatestPrices] = useState<Map<number, LatestPrice>>(new Map());
 
   const panelRef = useRef<HTMLDivElement | null>(null);
 
-
   const barsRef = useRef<Bar[]>([]);
   const latestPricesRef = useRef<Map<number, LatestPrice>>(new Map());
   useEffect(() => { barsRef.current = bars; }, [bars]);
   useEffect(() => { latestPricesRef.current = latestPrices; }, [latestPrices]);
-  
 
+  useEffect(() => {
+    if (!mapRef.current) return;
+    loadBarsAndPrices().catch(console.error);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDemoMode]);
 
   const [welcomeOpen, setWelcomeOpen] = useState(true);
-
   const [selectedBarId, setSelectedBarId] = useState<number | null>(null);
   const selectedBar = useMemo(() => (selectedBarId ? bars.find(b => b.id === selectedBarId) ?? null : null), [bars, selectedBarId]);
-
   const [candidate, setCandidate] = useState<Candidate | null>(null);
-
   const [panelOpen, setPanelOpen] = useState(false);
   const [priceInput, setPriceInput] = useState('');
   const [status, setStatus] = useState('');
   const [history, setHistory] = useState<LatestPrice[]>([]);
 
   async function loadBarsAndPrices() {
+    console.log('loadBarsAndPrices, isDemoMode =', isDemoMode);
+    const barsTable = isDemoMode ? 'bars_demo' : 'bars';
+    const pricesTable = isDemoMode ? 'prices_demo' : 'prices';
+    console.log('använder tabeller:', barsTable, pricesTable);
+
     const { data: barsData, error: barsErr } = await supabase
-      .from('bars')
+      .from(barsTable)
       .select('id,name,lat,lng,source,source_id,no_na_beer,no_na_reported_at')
       .order('id', { ascending: true });
 
+    console.log('barsData:', barsData?.length, barsErr);
     if (barsErr) throw barsErr;
 
     const barsRows: Bar[] = (barsData ?? []).map((r: any) => ({
@@ -255,7 +222,7 @@ export default function Page() {
     }));
 
     const { data: pricesData, error: pricesErr } = await supabase
-      .from('prices')
+      .from(pricesTable)
       .select('id,bar_id,price_sek,created_at,deleted_at')
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
@@ -273,13 +240,14 @@ export default function Page() {
 
     setBars(barsRows);
     setLatestPrices(latest);
-
     renderMarkers(barsRows, latest);
+    console.log('pricesData latest map size:', latest.size);
   }
 
   async function loadHistory(barId: number) {
+    const pricesTable = isDemoMode ? 'prices_demo' : 'prices';
     const { data, error } = await supabase
-      .from('prices')
+      .from(pricesTable)
       .select('id,bar_id,price_sek,created_at,deleted_at')
       .eq('bar_id', barId)
       .is('deleted_at', null)
@@ -288,13 +256,11 @@ export default function Page() {
 
     if (error) throw error;
 
-    const rows = (data ?? []).map((r: any) => ({
+    setHistory((data ?? []).map((r: any) => ({
       bar_id: Number(r.bar_id),
       price_sek: Number(r.price_sek),
       created_at: String(r.created_at),
-    })) as LatestPrice[];
-
-    setHistory(rows);
+    })));
   }
 
   function clearMarkers() {
@@ -308,14 +274,13 @@ export default function Page() {
 
     clearMarkers();
 
-    const showText = (zoomRef.current ?? map.getZoom()) >= PRICE_TEXT_ZOOM;
-
     function makePin(bg: string, border: string) {
       const pin = document.createElement('div');
       pin.style.display = 'flex';
       pin.style.flexDirection = 'column';
       pin.style.alignItems = 'center';
       pin.style.pointerEvents = 'auto';
+      pin.style.cursor = 'pointer';
 
       const head = document.createElement('div');
       head.style.width = '14px';
@@ -336,23 +301,55 @@ export default function Page() {
 
       pin.appendChild(head);
       pin.appendChild(tip);
-
       return pin;
     }
 
+    function addListeners(el: HTMLElement, nameEl: HTMLElement, b: Bar) {
+      el.addEventListener('mouseenter', () => {
+        nameEl.style.display = 'block';
+        el.style.zIndex = '999';
+        const parent = el.closest('.maplibregl-marker') as HTMLElement | null;
+        if (parent) parent.style.zIndex = '999';
+      });
+      el.addEventListener('mouseleave', () => {
+        nameEl.style.display = 'none';
+        el.style.zIndex = '';
+        const parent = el.closest('.maplibregl-marker') as HTMLElement | null;
+        if (parent) parent.style.zIndex = '';
+      });
+      el.addEventListener('touchstart', () => {
+        nameEl.style.display = 'block';
+        el.style.zIndex = '999';
+        const parent = el.closest('.maplibregl-marker') as HTMLElement | null;
+        if (parent) parent.style.zIndex = '999';
+        setTimeout(() => {
+          nameEl.style.display = 'none';
+          el.style.zIndex = '';
+          if (parent) parent.style.zIndex = '';
+        }, 1500);
+      }, { passive: true });
+      el.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        setCandidate(null);
+        setSelectedBarId(b.id);
+        setPanelOpen(true);
+        setStatus('');
+        setPriceInput('');
+        loadHistory(b.id).catch(console.error);
+        focusPoint(b.lng, b.lat);
+      });
+    }
 
     for (const b of allBars) {
       const lp = pricesMap.get(b.id);
       const noNa = Boolean(b.no_na_beer);
       const showText = (zoomRef.current ?? map.getZoom()) >= PRICE_TEXT_ZOOM;
 
-      // Utzoomat: dölj barer som saknar alkoholfri öl
       if (!showText && noNa) continue;
-
-      // Inzoomat: dölj helt tomma (varken pris eller no-na)
       if (!lp && !noNa) continue;
 
       const wrap = document.createElement('div');
+      wrap.style.pointerEvents = 'auto';
       wrap.style.display = 'flex';
       wrap.style.flexDirection = 'column';
       wrap.style.alignItems = 'center';
@@ -378,9 +375,7 @@ export default function Page() {
       pill.style.cursor = 'pointer';
 
       if (noNa) {
-        const showNoNaText = (zoomRef.current ?? map.getZoom()) >= PRICE_TEXT_ZOOM;
-
-        pill.style.background = '#F9FAFB'; // extra ljus grå
+        pill.style.background = '#F9FAFB';
         pill.style.color = '#111827';
         pill.style.border = '2px solid #000';
         pill.style.fontWeight = '900';
@@ -389,23 +384,20 @@ export default function Page() {
         pill.style.alignItems = 'center';
         pill.style.justifyContent = 'center';
 
-        if (showNoNaText) {
+        if (showText) {
           pill.textContent = '✕';
           pill.style.padding = '4px 6px';
           pill.style.minWidth = 'unset';
           pill.style.width = 'auto';
           pill.style.height = 'auto';
         } else {
-          // utzoomad: pin, inget kryss
           const pin = makePin('#F9FAFB', '#000');
           wrap.appendChild(name);
           wrap.appendChild(pin);
-          // hoppa över wrap.appendChild(pill) längst ner
-          // så vi behöver "continue" här:
+          addListeners(wrap, name, b);
           const marker = new maplibregl.Marker({ element: wrap, anchor: 'bottom' })
             .setLngLat([b.lng, b.lat])
             .addTo(map);
-
           markersRef.current.set(b.id, marker);
           continue;
         }
@@ -428,76 +420,44 @@ export default function Page() {
           pill.style.minWidth = '54px';
           pill.style.height = '30px';
         } else {
-          // utzoomad: pin (inte pill)
           const pin = makePin(c.bg, c.border);
           wrap.appendChild(name);
           wrap.appendChild(pin);
-
+          addListeners(wrap, name, b);
           const marker = new maplibregl.Marker({ element: wrap, anchor: 'bottom' })
             .setLngLat([b.lng, b.lat])
             .addTo(map);
-
           markersRef.current.set(b.id, marker);
           continue;
         }
       }
 
-      // show name on hover (desktop)
-      wrap.addEventListener('mouseenter', () => { name.style.display = 'block'; });
-      wrap.addEventListener('mouseleave', () => { name.style.display = 'none'; });
-
-      // tap shows name briefly (mobile)
-      wrap.addEventListener('touchstart', () => {
-        name.style.display = 'block';
-        setTimeout(() => { name.style.display = 'none'; }, 1500);
-      }, { passive: true });
-
-      // click marker opens panel for that bar
-      wrap.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        setCandidate(null);
-        setSelectedBarId(b.id);
-        setPanelOpen(true);
-        setStatus('');
-        setPriceInput('');
-        loadHistory(b.id).catch(console.error);
-        focusPoint(b.lng, b.lat); // ← LÄGG TILL DENNA RAD
-      });
-
+      addListeners(wrap, name, b);
       wrap.appendChild(name);
       wrap.appendChild(pill);
 
       const marker = new maplibregl.Marker({ element: wrap, anchor: 'bottom' })
         .setLngLat([b.lng, b.lat])
         .addTo(map);
-
       markersRef.current.set(b.id, marker);
     }
   }
 
-    function focusPoint(lng: number, lat: number) {
+  function focusPoint(lng: number, lat: number) {
     const map = mapRef.current;
     if (!map) return;
-
     const h = map.getContainer().clientHeight || 800;
-    const offsetY = Math.round(h / 6); // flytta center ned -> target hamnar högre (≈ 1/3 från toppen)
-
-    map.easeTo({
-      center: [lng, lat],
-      offset: [0, offsetY],
-      duration: 350,
-    });
+    const offsetY = Math.round(h / 6);
+    map.easeTo({ center: [lng, lat], offset: [0, offsetY], duration: 350 });
   }
 
   async function locateMe() {
     const map = mapRef.current;
     if (!map) return;
-
     if (!navigator.geolocation) {
       setStatus('Geolocation stöds inte i denna webbläsare.');
       return;
     }
-
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         map.easeTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: Math.max(map.getZoom(), 14) });
@@ -509,13 +469,8 @@ export default function Page() {
 
   async function savePriceSelected() {
     if (!selectedBar) return;
-
     const p = parseInt(priceInput.trim(), 10);
-    if (!Number.isFinite(p) || p < 10 || p > 150) {
-      setStatus('Pris måste vara 10-150 kr.');
-      return;
-    }
-
+    if (!Number.isFinite(p) || p < 10 || p > 150) { setStatus('Pris måste vara 10-150 kr.'); return; }
     setStatus('Sparar...');
     const r = await fetch('/api/price', {
       method: 'POST',
@@ -524,7 +479,6 @@ export default function Page() {
     });
     const j = await r.json();
     if (!j.ok) { setStatus(`Fel: ${j.error || 'okänt fel'}`); return; }
-
     setStatus('Sparat.');
     setPriceInput('');
     await loadBarsAndPrices();
@@ -533,13 +487,8 @@ export default function Page() {
 
   async function savePriceCandidate() {
     if (!candidate) return;
-
     const p = parseInt(priceInput.trim(), 10);
-    if (!Number.isFinite(p) || p < 10 || p > 150) {
-      setStatus('Pris måste vara 10-150 kr.');
-      return;
-    }
-
+    if (!Number.isFinite(p) || p < 10 || p > 150) { setStatus('Pris måste vara 10-150 kr.'); return; }
     setStatus('Sparar...');
     const r = await fetch('/api/price', {
       method: 'POST',
@@ -548,7 +497,6 @@ export default function Page() {
     });
     const j = await r.json();
     if (!j.ok) { setStatus(`Fel: ${j.error || 'okänt fel'}`); return; }
-
     setStatus('Sparat.');
     setPriceInput('');
     setCandidate(null);
@@ -558,7 +506,6 @@ export default function Page() {
   async function reportNoNaSelected() {
     if (!selectedBar) return;
     setStatus('Sparar...');
-
     const r = await fetch('/api/no-na', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -566,7 +513,6 @@ export default function Page() {
     });
     const j = await r.json();
     if (!j.ok) { setStatus(`Fel: ${j.error || 'okänt fel'}`); return; }
-
     setStatus('Sparat.');
     setPriceInput('');
     await loadBarsAndPrices();
@@ -576,7 +522,6 @@ export default function Page() {
   async function reportNoNaCandidate() {
     if (!candidate) return;
     setStatus('Sparar...');
-
     const r = await fetch('/api/no-na', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -584,7 +529,6 @@ export default function Page() {
     });
     const j = await r.json();
     if (!j.ok) { setStatus(`Fel: ${j.error || 'okänt fel'}`); return; }
-
     setStatus('Sparat.');
     setPriceInput('');
     setCandidate(null);
@@ -594,7 +538,6 @@ export default function Page() {
   async function reportWrongPrice() {
     if (!selectedBar) return;
     setStatus('Tar bort pris...');
-
     const r = await fetch('/api/report-wrong-price', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -602,7 +545,6 @@ export default function Page() {
     });
     const j = await r.json();
     if (!j.ok) { setStatus(`Fel: ${j.error || 'okänt fel'}`); return; }
-
     setStatus('Borttagen.');
     await loadBarsAndPrices();
     await loadHistory(selectedBar.id);
@@ -622,26 +564,18 @@ export default function Page() {
       if (selectedBar) savePriceSelected();
       else if (candidate) savePriceCandidate();
     }
-    if (e.key === 'Escape') {
-      closePanel();
-    }
+    if (e.key === 'Escape') closePanel();
   }
 
-
-    useEffect(() => {
+  useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-
     if (!panelOpen) {
-      // återställ padding när panelen är stängd
       map.setPadding({ top: 0, right: 0, bottom: 0, left: 0 });
       return;
     }
-
     const ph = panelRef.current?.offsetHeight ?? 220;
     map.setPadding({ top: 0, right: 0, bottom: ph + 24, left: 0 });
-
-    // recenter på vald punkt så pill hamnar runt 1/3 från toppen
     if (selectedBar) focusPoint(selectedBar.lng, selectedBar.lat);
     else if (candidate) focusPoint(candidate.lng, candidate.lat);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -649,20 +583,13 @@ export default function Page() {
 
   useEffect(() => {
     if (!panelOpen) return;
-
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        closePanel();
-      }
+      if (e.key === 'Escape') { e.preventDefault(); closePanel(); }
     };
-
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [panelOpen]);
 
-
-  // MAP init
   useEffect(() => {
     if (!mapContainerRef.current) return;
     if (mapRef.current) return;
@@ -690,22 +617,14 @@ export default function Page() {
 
     const onClick = (e: MapMouseEvent) => {
       const cand = pickCandidateFromClick(map, e);
-
-      // Klick på "tom karta" => stäng panelen och avmarkera
-      if (!cand) {
-        closePanel();
-        return;
-      }
-
+      if (!cand) { closePanel(); return; }
       setSelectedBarId(null);
       setCandidate(cand);
       setPanelOpen(true);
       setStatus('');
       setHistory([]);
       setPriceInput('');
-
-      focusPoint(cand.lng, cand.lat); // ← LÄGG TILL DENNA RAD
-
+      focusPoint(cand.lng, cand.lat);
     };
 
     map.on('zoom', onZoom);
@@ -734,46 +653,59 @@ export default function Page() {
   return (
     <div className={styles.app}>
       <div className={styles.mapWrap}>
-
         <div className={styles.topLeftBrand}>
           <a href="https://www.iq.se" target="_blank" rel="noopener noreferrer">
-            <img
-              src="/iq_logotype.svg"
-              alt="IQ"
-              className={styles.iqLogo}
-            />
+            <img src="/iq_logotype.svg" alt="IQ" className={styles.iqLogo} />
           </a>
         </div>
-
         <div ref={mapContainerRef} className={styles.map} />
       </div>
 
+      {isDemoMode && (
+        <div style={{
+          position: 'absolute',
+          top: 12,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 30,
+          background: '#ede9fe',
+          border: '2px solid #7c3aed',
+          borderRadius: 12,
+          padding: '6px 14px',
+          fontWeight: 900,
+          fontSize: 13,
+          color: '#5b21b6',
+          boxShadow: '2px 2px 0 #111827',
+        }}>
+          🟣 Demo-läge
+        </div>
+      )}
 
-      {/* Locate me */}
       <button className={styles.locateBtn} onClick={locateMe} aria-label="Hitta min plats" title="Hitta min plats">
         ⌖
       </button>
 
-      {/* Legend */}
-      {zoomLevel < PRICE_TEXT_ZOOM ? (
+      {process.env.NODE_ENV === 'development' && (
+        <a href="/admin" className={styles.devBtn}>Admin</a>
+      )}
 
-      <div className={styles.legend}>
-        <div className={styles.legendItem}>
-          <span className={styles.legendDot} style={{ background: '#D1FAE5', borderColor: '#065F46' }} />
-          <span className={styles.legendText}>Billigt (≤35)</span>
+      {zoomLevel < PRICE_TEXT_ZOOM ? (
+        <div className={styles.legend}>
+          <div className={styles.legendItem}>
+            <span className={styles.legendDot} style={{ background: '#D1FAE5', borderColor: '#065F46' }} />
+            <span className={styles.legendText}>Billigt (≤35)</span>
+          </div>
+          <div className={styles.legendItem}>
+            <span className={styles.legendDot} style={{ background: '#FEF3C7', borderColor: '#92400E' }} />
+            <span className={styles.legendText}>Medel (36-45)</span>
+          </div>
+          <div className={styles.legendItem}>
+            <span className={styles.legendDot} style={{ background: '#FEE2E2', borderColor: '#991B1B' }} />
+            <span className={styles.legendText}>Högt (46+)</span>
+          </div>
         </div>
-        <div className={styles.legendItem}>
-          <span className={styles.legendDot} style={{ background: '#FEF3C7', borderColor: '#92400E' }} />
-          <span className={styles.legendText}>Medel (36-45)</span>
-        </div>
-        <div className={styles.legendItem}>
-          <span className={styles.legendDot} style={{ background: '#FEE2E2', borderColor: '#991B1B' }} />
-          <span className={styles.legendText}>Högt (46+)</span>
-        </div>
-      </div>
       ) : null}
 
-      {/* Panel */}
       {panelOpen ? (
         <div ref={panelRef} className={styles.panel}>
           <div className={styles.panelTitleRow}>
@@ -831,27 +763,109 @@ export default function Page() {
               ))}
             </div>
           ) : (
-            <div className={styles.hint}>
-              Tips: Enter sparar pris. Escape stänger.
-            </div>
+            <div className={styles.hint}>Tips: Enter sparar pris. Escape stänger.</div>
           )}
         </div>
       ) : null}
 
-      {/* Welcome overlay (visas varje gång) */}
       {welcomeOpen ? (
         <div className={styles.welcomeOverlay} onClick={() => setWelcomeOpen(false)}>
-          <div className={styles.welcomeCard} onClick={(e) => e.stopPropagation()}>
-            <div className={styles.welcomeTitle}>Välkommen</div>
-            <div className={styles.welcomeText}>
-              Här hittar du vad alkoholfri öl kostar på barer och restauranger i Sverige.
-              Klicka på en plats i kartan för att lägga till eller uppdatera ett pris.
-              Om alkoholfri öl saknas kan du markera det också.
+          <div
+            className={styles.welcomeCard}
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: '#242f55',
+              color: '#fff',
+              maxWidth: 480,
+              padding: '40px 36px 32px',
+              borderRadius: 16,
+              border: '2px solid #111827',
+              boxShadow: '4px 4px 0 #111827',
+            }}
+          >
+            <div style={{
+              fontFamily: 'var(--font-heading)',
+              fontSize: 'clamp(28px, 5vw, 40px)',
+              lineHeight: 1.15,
+              marginBottom: 16,
+              color: '#fff',
+            }}>
+              Vad kostar alkoholfri öl?
             </div>
-            <div className={styles.btnRow}>
-              <button className={`${styles.btn} ${styles.btnDark}`} onClick={() => setWelcomeOpen(false)}>
-                Okej
-              </button>
+
+            <div style={{
+              fontFamily: 'var(--font-body)',
+              fontSize: 15,
+              lineHeight: 1.6,
+              color: '#fff',
+              marginBottom: 20,
+            }}>
+              En karta över priser på alkoholfri öl på barer och restauranger i Sverige.
+              Datan samlas in av besökare som du.
+            </div>
+
+            <div style={{
+              fontFamily: 'var(--font-body)',
+              fontSize: 14,
+              lineHeight: 1.8,
+              color: '#fff',
+              marginBottom: 28,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 4,
+            }}>
+              <div>→ Klicka på en plats för att se eller lägga till pris</div>
+              <div>→ Saknar stället alkoholfri öl? Markera det</div>
+              <div>→ Alla kan bidra – ju fler, desto bättre karta</div>
+            </div>
+
+            <button
+              className={`${styles.btn} ${styles.btnDark}`}
+              style={{
+                background: '#fff',
+                color: '#242f55',
+                border: '2px solid #fff',
+                fontWeight: 900,
+                fontSize: 15,
+                padding: '10px 24px',
+                width: '100%',
+                marginBottom: 28,
+              }}
+              onClick={() => setWelcomeOpen(false)}
+            >
+              Utforska kartan
+            </button>
+
+            <div style={{
+              borderTop: '1px solid rgba(255,255,255,0.3)',
+              paddingTop: 20,
+            }}>
+              <a
+                href="https://www.iq.se"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  textDecoration: 'none',
+                }}
+              >
+                <img
+                  src="/iq_logotype_darkblueyellow.svg"
+                  alt="IQ"
+                  style={{ height: 28 }}
+                />
+                <span style={{
+                  fontFamily: 'var(--font-body)',
+                  fontSize: 13,
+                  color: '#fff',
+                  textDecoration: 'none',
+                  textUnderlineOffset: 3,
+                }}>
+                  Ett initiativ av IQ
+                </span>
+              </a>
             </div>
           </div>
         </div>

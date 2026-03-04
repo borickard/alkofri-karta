@@ -272,7 +272,8 @@
 .welcomeTitle {
   font-weight: 1000;
   color: var(--ink);
-  font-size: 16px;
+  font-size: 24px;
+  font-family: var(--font-heading);
 }
 
 .welcomeText {
@@ -296,9 +297,26 @@
   display: block;
 }
 
+.devBtn {
+  position: absolute;
+  left: 72px;
+  bottom: 20px;
+  z-index: 30;
+  background: #7c3aed;
+  color: #ffffff;
+  border: 2px solid #111827;
+  box-shadow: 2px 2px 0 #111827;
+  border-radius: 12px;
+  padding: 8px 14px;
+  font-weight: 900;
+  font-size: 13px;
+  text-decoration: none;
+  cursor: pointer;
+}
 @media (min-width: 768px) {
   .iqLogo {
     height: 56px;
     /* desktop */
   }
 }
+

@@ -38,7 +38,7 @@ const box = (extra?: CSSProperties): CSSProperties => ({
   ...extra,
 });
 
-const btn = (variant: 'dark' | 'light' | 'danger' = 'dark'): CSSProperties => {
+const btn = (variant: 'dark' | 'light' | 'danger' | 'purple' = 'dark'): CSSProperties => {
   const base: CSSProperties = {
     border: retro.border,
     boxShadow: retro.shadow,
@@ -49,6 +49,7 @@ const btn = (variant: 'dark' | 'light' | 'danger' = 'dark'): CSSProperties => {
   };
   if (variant === 'dark') return { ...base, background: '#111827', color: 'white' };
   if (variant === 'danger') return { ...base, background: '#B91C1C', color: 'white' };
+  if (variant === 'purple') return { ...base, background: '#7c3aed', color: 'white' };
   return { ...base, background: '#FFFFFF', color: '#111827' };
 };
 
@@ -70,6 +71,7 @@ export default function AdminPage() {
   const [days, setDays] = useState(30);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState('');
+  const [isDemo, setIsDemo] = useState(false);
 
   const [prices, setPrices] = useState<PriceRow[]>([]);
   const [audit, setAudit] = useState<AuditRow[]>([]);
@@ -82,15 +84,17 @@ export default function AdminPage() {
     setStatus('');
     try {
       if (tab === 'prices') {
-        const url = `/api/admin/prices?days=${encodeURIComponent(days)}&limit=200&include_deleted=${
-          includeDeleted ? '1' : '0'
-        }`;
+        const url = `/api/admin/prices?days=${encodeURIComponent(days)}&limit=200&include_deleted=${includeDeleted ? '1' : '0'
+          }&demo=${isDemo ? '1' : '0'}`;
         const r = await fetch(url, { cache: 'no-store' });
         const j = await r.json();
         if (!j.ok) throw new Error(j.error || 'Kunde inte ladda priser');
         setPrices(j.rows || []);
       } else {
-        const r = await fetch(`/api/admin/audit?days=${encodeURIComponent(days)}&limit=250`, { cache: 'no-store' });
+        const r = await fetch(
+          `/api/admin/audit?days=${encodeURIComponent(days)}&limit=250&demo=${isDemo ? '1' : '0'}`,
+          { cache: 'no-store' }
+        );
         const j = await r.json();
         if (!j.ok) throw new Error(j.error || 'Kunde inte ladda audit');
         setAudit(j.rows || []);
@@ -105,7 +109,7 @@ export default function AdminPage() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, days, includeDeleted]);
+  }, [tab, days, includeDeleted, isDemo]);
 
   async function deletePrice(price_id: number) {
     if (!confirm(`Soft-delete price_id=${price_id}?`)) return;
@@ -114,7 +118,7 @@ export default function AdminPage() {
       const r = await fetch('/api/admin/delete-price', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ price_id }),
+        body: JSON.stringify({ price_id, demo: isDemo }),
       });
       const j = await r.json();
       if (!j.ok) throw new Error(j.error || 'Delete misslyckades');
@@ -132,7 +136,7 @@ export default function AdminPage() {
       const r = await fetch('/api/admin/bulk-delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'all' }),
+        body: JSON.stringify({ mode: 'all', demo: isDemo }),
       });
       const j = await r.json();
       if (!j.ok) throw new Error(j.error || 'Bulk delete misslyckades');
@@ -150,7 +154,7 @@ export default function AdminPage() {
       const r = await fetch('/api/admin/bulk-delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'last_days', days }),
+        body: JSON.stringify({ mode: 'last_days', days, demo: isDemo }),
       });
       const j = await r.json();
       if (!j.ok) throw new Error(j.error || 'Bulk delete misslyckades');
@@ -180,6 +184,27 @@ export default function AdminPage() {
               </button>
               <button style={btn(tab === 'audit' ? 'dark' : 'light')} onClick={() => setTab('audit')}>
                 Audit
+              </button>
+            </div>
+          </div>
+
+          {/* Demo-toggle */}
+          <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div
+              style={{
+                ...box({ padding: '8px 14px', borderRadius: 12 }),
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                background: isDemo ? '#ede9fe' : '#f3f4f6',
+                borderColor: isDemo ? '#7c3aed' : '#111827',
+              }}
+            >
+              <span style={{ fontWeight: 900, color: '#111827' }}>
+                {isDemo ? '🟣 Demo-databas' : '🟢 Skarp databas'}
+              </span>
+              <button style={btn(isDemo ? 'light' : 'purple')} onClick={() => setIsDemo(!isDemo)}>
+                {isDemo ? 'Byt till skarp' : 'Byt till demo'}
               </button>
             </div>
           </div>
@@ -226,28 +251,19 @@ export default function AdminPage() {
             <div style={{ fontWeight: 1000, color: '#111827' }}>Senaste prisrader</div>
             <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
               {prices.map((p) => (
-                <div
-                  key={p.id}
-                  style={box({
-                    padding: 12,
-                    borderRadius: 14,
-                    boxShadow: '1px 1px 0 #111827',
-                  })}
-                >
+                <div key={p.id} style={box({ padding: 12, borderRadius: 14, boxShadow: '1px 1px 0 #111827' })}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
                     <div style={{ fontWeight: 1000, color: '#111827' }}>
                       {p.bar_name} <span style={{ fontWeight: 900, color: '#374151' }}>#{p.bar_id}</span>
                     </div>
                     <div style={{ fontWeight: 1000, color: '#111827' }}>{p.price_sek} kr</div>
                   </div>
-
                   <div style={{ marginTop: 6, display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
                     <div style={{ fontWeight: 900, color: '#374151' }}>Skapad: {fmt(p.created_at)}</div>
                     <div style={{ fontWeight: 900, color: p.deleted_at ? '#B91C1C' : '#065F46' }}>
                       {p.deleted_at ? `DELETAD: ${fmt(p.deleted_at)}` : 'AKTIV'}
                     </div>
                   </div>
-
                   <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     <button style={btn('light')} onClick={() => deletePrice(p.id)}>
                       Soft-delete
@@ -255,7 +271,6 @@ export default function AdminPage() {
                   </div>
                 </div>
               ))}
-
               {!prices.length ? <div style={{ fontWeight: 900, color: '#374151' }}>Inga rader.</div> : null}
             </div>
           </div>
@@ -264,26 +279,16 @@ export default function AdminPage() {
             <div style={{ fontWeight: 1000, color: '#111827' }}>Audit events</div>
             <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
               {audit.map((a) => (
-                <div
-                  key={a.id}
-                  style={box({
-                    padding: 12,
-                    borderRadius: 14,
-                    boxShadow: '1px 1px 0 #111827',
-                  })}
-                >
+                <div key={a.id} style={box({ padding: 12, borderRadius: 14, boxShadow: '1px 1px 0 #111827' })}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
                     <div style={{ fontWeight: 1000, color: '#111827' }}>
                       {a.action}{' '}
-                      <span style={{ fontWeight: 900, color: '#374151' }}>
-                        #{a.id} {fmt(a.created_at)}
-                      </span>
+                      <span style={{ fontWeight: 900, color: '#374151' }}>#{a.id} {fmt(a.created_at)}</span>
                     </div>
                     <div style={{ fontWeight: 1000, color: '#111827' }}>
                       {a.price_sek !== null ? `${a.price_sek} kr` : ''}
                     </div>
                   </div>
-
                   <div style={{ marginTop: 6, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                     <div style={{ fontWeight: 900, color: '#374151' }}>bar_id: {a.bar_id ?? '-'}</div>
                     <div style={{ fontWeight: 900, color: '#374151' }}>price_id: {a.price_id ?? '-'}</div>
@@ -291,11 +296,9 @@ export default function AdminPage() {
                       ip_hash: {a.ip_hash ? a.ip_hash.slice(0, 16) + '…' : '-'}
                     </div>
                   </div>
-
                   <div style={{ marginTop: 6, fontWeight: 900, color: '#374151' }}>
                     UA: {a.user_agent ? a.user_agent.slice(0, 120) : '-'}
                   </div>
-
                   {a.price_id ? (
                     <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                       <button style={btn('light')} onClick={() => deletePrice(a.price_id!)}>
@@ -305,7 +308,6 @@ export default function AdminPage() {
                   ) : null}
                 </div>
               ))}
-
               {!audit.length ? <div style={{ fontWeight: 900, color: '#374151' }}>Inga events.</div> : null}
             </div>
           </div>
