@@ -165,11 +165,11 @@ export default function Page() {
   const [zoomLevel, setZoomLevel] = useState(12);
   const markersRef = useRef<Map<number, maplibregl.Marker>>(new Map());
 
-  const [isDemoMode, setIsDemoMode] = useState(false);
-
-  useEffect(() => {
-    setIsDemoMode(new URLSearchParams(window.location.search).has('demo'));
-  }, []);
+  const [isDemoMode] = useState(() =>
+    typeof window !== 'undefined'
+      ? new URLSearchParams(window.location.search).has('demo')
+      : false
+  );
 
   const [bars, setBars] = useState<Bar[]>([]);
   const [latestPrices, setLatestPrices] = useState<Map<number, LatestPrice>>(new Map());
@@ -180,12 +180,6 @@ export default function Page() {
   const latestPricesRef = useRef<Map<number, LatestPrice>>(new Map());
   useEffect(() => { barsRef.current = bars; }, [bars]);
   useEffect(() => { latestPricesRef.current = latestPrices; }, [latestPrices]);
-
-  useEffect(() => {
-    if (!mapRef.current) return;
-    loadBarsAndPrices().catch(console.error);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDemoMode]);
 
   const [welcomeOpen, setWelcomeOpen] = useState(true);
   const [selectedBarId, setSelectedBarId] = useState<number | null>(null);
@@ -493,7 +487,7 @@ export default function Page() {
     const r = await fetch('/api/price', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...candidate, price_sek: p }),
+      body: JSON.stringify({ ...candidate, price_sek: p, demo: isDemoMode }),
     });
     const j = await r.json();
     if (!j.ok) { setStatus(`Fel: ${j.error || 'okänt fel'}`); return; }
@@ -509,7 +503,7 @@ export default function Page() {
     const r = await fetch('/api/no-na', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bar_id: selectedBar.id }),
+      body: JSON.stringify({ bar_id: selectedBar.id, demo: isDemoMode }),
     });
     const j = await r.json();
     if (!j.ok) { setStatus(`Fel: ${j.error || 'okänt fel'}`); return; }
@@ -525,7 +519,7 @@ export default function Page() {
     const r = await fetch('/api/no-na', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(candidate),
+      body: JSON.stringify({ ...candidate, demo: isDemoMode }),
     });
     const j = await r.json();
     if (!j.ok) { setStatus(`Fel: ${j.error || 'okänt fel'}`); return; }
@@ -541,7 +535,7 @@ export default function Page() {
     const r = await fetch('/api/report-wrong-price', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bar_id: selectedBar.id }),
+      body: JSON.stringify({ bar_id: selectedBar.id, demo: isDemoMode }),
     });
     const j = await r.json();
     if (!j.ok) { setStatus(`Fel: ${j.error || 'okänt fel'}`); return; }
