@@ -23,44 +23,41 @@ type PriceRow = {
   deleted_at: string | null;
 };
 
-const retro = {
-  border: '2px solid #111827',
-  shadow: '2px 2px 0 #111827',
-  bg: '#FFFFFF',
-  radius: 16,
-};
-
-const box = (extra?: CSSProperties): CSSProperties => ({
-  background: retro.bg,
-  border: retro.border,
-  boxShadow: retro.shadow,
-  borderRadius: retro.radius,
+const card = (extra?: CSSProperties): CSSProperties => ({
+  background: '#ffffff',
+  border: '1px solid #e5e7eb',
+  boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+  borderRadius: 8,
   ...extra,
 });
 
-const btn = (variant: 'dark' | 'light' | 'danger' | 'purple' = 'dark'): CSSProperties => {
+const btn = (variant: 'dark' | 'light' | 'danger' = 'light'): CSSProperties => {
   const base: CSSProperties = {
-    border: retro.border,
-    boxShadow: retro.shadow,
-    borderRadius: 12,
-    padding: '10px 12px',
-    fontWeight: 900,
+    border: '1px solid #d1d5db',
+    borderRadius: 6,
+    padding: '8px 14px',
+    fontWeight: 600,
+    fontSize: 14,
     cursor: 'pointer',
   };
-  if (variant === 'dark') return { ...base, background: '#111827', color: 'white' };
-  if (variant === 'danger') return { ...base, background: '#B91C1C', color: 'white' };
-  if (variant === 'purple') return { ...base, background: '#7c3aed', color: 'white' };
-  return { ...base, background: '#FFFFFF', color: '#111827' };
+  if (variant === 'dark') return { ...base, background: '#111827', color: '#ffffff', borderColor: '#111827' };
+  if (variant === 'danger') return { ...base, background: '#b91c1c', color: '#ffffff', borderColor: '#b91c1c' };
+  return { ...base, background: '#ffffff', color: '#111827' };
 };
 
-const input: CSSProperties = {
-  border: retro.border,
-  boxShadow: retro.shadow,
-  borderRadius: 12,
-  padding: '10px 12px',
-  fontWeight: 900,
+const inputStyle: CSSProperties = {
+  border: '1px solid #d1d5db',
+  borderRadius: 6,
+  padding: '8px 12px',
+  fontWeight: 500,
+  fontSize: 14,
   outline: 'none',
+  background: '#ffffff',
+  color: '#111827',
 };
+
+const muted: CSSProperties = { color: '#6b7280', fontSize: 13, fontWeight: 400 };
+const label: CSSProperties = { color: '#374151', fontSize: 14, fontWeight: 600 };
 
 function fmt(iso: string) {
   return new Date(iso).toLocaleString('sv-SE');
@@ -166,60 +163,34 @@ export default function AdminPage() {
   }
 
   return (
-    <div style={{ minHeight: '100dvh', background: '#F3F4F6', padding: 16 }}>
+    <div style={{ minHeight: '100dvh', background: '#f3f4f6', padding: 16 }}>
       <div style={{ maxWidth: 980, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <div style={box({ padding: 16 })}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+
+        {/* Header */}
+        <div style={card({ padding: 16 })}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
             <div>
-              <div style={{ fontSize: 18, fontWeight: 1000, color: '#111827' }}>Admin</div>
-              <div style={{ marginTop: 6, fontWeight: 900, color: '#111827' }}>{headline}</div>
-              <div style={{ marginTop: 6, color: '#374151', fontWeight: 800 }}>
-                Här kan du moderera sabotage: soft-delete priser och se logg (IP-hash + user agent).
-              </div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: '#111827' }}>Admin</div>
+              <div style={{ marginTop: 2, ...muted }}>{headline}</div>
             </div>
-
-            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-              <button style={btn(tab === 'prices' ? 'dark' : 'light')} onClick={() => setTab('prices')}>
-                Priser
-              </button>
-              <button style={btn(tab === 'audit' ? 'dark' : 'light')} onClick={() => setTab('audit')}>
-                Audit
-              </button>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button style={btn(tab === 'prices' ? 'dark' : 'light')} onClick={() => setTab('prices')}>Priser</button>
+              <button style={btn(tab === 'audit' ? 'dark' : 'light')} onClick={() => setTab('audit')}>Audit</button>
             </div>
           </div>
 
-          {/* Demo-toggle */}
-          <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div
-              style={{
-                ...box({ padding: '8px 14px', borderRadius: 12 }),
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                background: isDemo ? '#ede9fe' : '#f3f4f6',
-                borderColor: isDemo ? '#7c3aed' : '#111827',
-              }}
-            >
-              <span style={{ fontWeight: 900, color: '#111827' }}>
-                {isDemo ? '🟣 Demo-databas' : '🟢 Skarp databas'}
-              </span>
-              <button style={btn(isDemo ? 'light' : 'purple')} onClick={() => setIsDemo(!isDemo)}>
-                {isDemo ? 'Byt till skarp' : 'Byt till demo'}
-              </button>
-            </div>
-          </div>
-
-          <div style={{ marginTop: 12, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-            <label style={{ fontWeight: 900, color: '#111827' }}>Dagar:</label>
+          {/* Controls */}
+          <div style={{ marginTop: 14, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={label}>Dagar:</span>
             <input
-              style={{ ...input, width: 110 }}
+              style={{ ...inputStyle, width: 90 }}
               inputMode="numeric"
               value={String(days)}
               onChange={(e) => setDays(Number(e.target.value || 0))}
             />
 
-            {tab === 'prices' ? (
-              <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 900, color: '#111827' }}>
+            {tab === 'prices' && (
+              <label style={{ display: 'flex', gap: 6, alignItems: 'center', ...label, cursor: 'pointer' }}>
                 <input
                   type="checkbox"
                   checked={includeDeleted}
@@ -227,7 +198,7 @@ export default function AdminPage() {
                 />
                 Visa deletade
               </label>
-            ) : null}
+            )}
 
             <button style={btn('light')} onClick={load} disabled={loading}>
               {loading ? 'Laddar…' : 'Uppdatera'}
@@ -235,80 +206,87 @@ export default function AdminPage() {
 
             <div style={{ flex: 1 }} />
 
+            <button
+              style={{ ...btn('light'), border: '1px solid #d1d5db' }}
+              onClick={() => setIsDemo(!isDemo)}
+            >
+              {isDemo ? 'Demo-databas' : 'Skarp databas'}
+            </button>
             <button style={btn('light')} onClick={bulkDeleteLastDays}>
-              Rensa senaste {days} dagar
+              Rensa {days} dagar
             </button>
             <button style={btn('danger')} onClick={bulkDeleteAll}>
-              Rensa ALLA priser
+              Rensa alla
             </button>
           </div>
 
-          {status ? <div style={{ marginTop: 10, fontWeight: 900, color: '#111827' }}>{status}</div> : null}
+          {status && (
+            <div style={{ marginTop: 10, ...muted }}>{status}</div>
+          )}
         </div>
 
-        {tab === 'prices' ? (
-          <div style={box({ padding: 12 })}>
-            <div style={{ fontWeight: 1000, color: '#111827' }}>Senaste prisrader</div>
-            <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {/* Prices */}
+        {tab === 'prices' && (
+          <div style={card({ padding: 12 })}>
+            <div style={{ ...label, marginBottom: 10 }}>Senaste prisrader</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {prices.map((p) => (
-                <div key={p.id} style={box({ padding: 12, borderRadius: 14, boxShadow: '1px 1px 0 #111827' })}>
+                <div key={p.id} style={card({ padding: '10px 12px' })}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
-                    <div style={{ fontWeight: 1000, color: '#111827' }}>
-                      {p.bar_name} <span style={{ fontWeight: 900, color: '#374151' }}>#{p.bar_id}</span>
+                    <div style={{ fontWeight: 600, color: '#111827', fontSize: 14 }}>
+                      {p.bar_name} <span style={muted}>#{p.bar_id}</span>
                     </div>
-                    <div style={{ fontWeight: 1000, color: '#111827' }}>{p.price_sek} kr</div>
+                    <div style={{ fontWeight: 600, color: '#111827', fontSize: 14 }}>{p.price_sek} kr</div>
                   </div>
-                  <div style={{ marginTop: 6, display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
-                    <div style={{ fontWeight: 900, color: '#374151' }}>Skapad: {fmt(p.created_at)}</div>
-                    <div style={{ fontWeight: 900, color: p.deleted_at ? '#B91C1C' : '#065F46' }}>
-                      {p.deleted_at ? `DELETAD: ${fmt(p.deleted_at)}` : 'AKTIV'}
+                  <div style={{ marginTop: 4, display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+                    <div style={muted}>Skapad: {fmt(p.created_at)}</div>
+                    <div style={{ ...muted, color: p.deleted_at ? '#b91c1c' : '#065f46', fontWeight: 600 }}>
+                      {p.deleted_at ? `Deletad: ${fmt(p.deleted_at)}` : 'Aktiv'}
                     </div>
                   </div>
-                  <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    <button style={btn('light')} onClick={() => deletePrice(p.id)}>
-                      Soft-delete
-                    </button>
+                  <div style={{ marginTop: 8 }}>
+                    <button style={btn('light')} onClick={() => deletePrice(p.id)}>Soft-delete</button>
                   </div>
                 </div>
               ))}
-              {!prices.length ? <div style={{ fontWeight: 900, color: '#374151' }}>Inga rader.</div> : null}
+              {!prices.length && <div style={muted}>Inga rader.</div>}
             </div>
           </div>
-        ) : (
-          <div style={box({ padding: 12 })}>
-            <div style={{ fontWeight: 1000, color: '#111827' }}>Audit events</div>
-            <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        )}
+
+        {/* Audit */}
+        {tab === 'audit' && (
+          <div style={card({ padding: 12 })}>
+            <div style={{ ...label, marginBottom: 10 }}>Audit events</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {audit.map((a) => (
-                <div key={a.id} style={box({ padding: 12, borderRadius: 14, boxShadow: '1px 1px 0 #111827' })}>
+                <div key={a.id} style={card({ padding: '10px 12px' })}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
-                    <div style={{ fontWeight: 1000, color: '#111827' }}>
-                      {a.action}{' '}
-                      <span style={{ fontWeight: 900, color: '#374151' }}>#{a.id} {fmt(a.created_at)}</span>
+                    <div style={{ fontWeight: 600, color: '#111827', fontSize: 14 }}>
+                      {a.action} <span style={muted}>#{a.id} · {fmt(a.created_at)}</span>
                     </div>
-                    <div style={{ fontWeight: 1000, color: '#111827' }}>
+                    <div style={{ fontWeight: 600, color: '#111827', fontSize: 14 }}>
                       {a.price_sek !== null ? `${a.price_sek} kr` : ''}
                     </div>
                   </div>
-                  <div style={{ marginTop: 6, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                    <div style={{ fontWeight: 900, color: '#374151' }}>bar_id: {a.bar_id ?? '-'}</div>
-                    <div style={{ fontWeight: 900, color: '#374151' }}>price_id: {a.price_id ?? '-'}</div>
-                    <div style={{ fontWeight: 900, color: '#374151' }}>
-                      ip_hash: {a.ip_hash ? a.ip_hash.slice(0, 16) + '…' : '-'}
-                    </div>
+                  <div style={{ marginTop: 4, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                    <span style={muted}>bar_id: {a.bar_id ?? '–'}</span>
+                    <span style={muted}>price_id: {a.price_id ?? '–'}</span>
+                    <span style={muted}>ip: {a.ip_hash ? a.ip_hash.slice(0, 16) + '…' : '–'}</span>
                   </div>
-                  <div style={{ marginTop: 6, fontWeight: 900, color: '#374151' }}>
-                    UA: {a.user_agent ? a.user_agent.slice(0, 120) : '-'}
+                  <div style={{ marginTop: 2, ...muted, wordBreak: 'break-all' }}>
+                    UA: {a.user_agent ? a.user_agent.slice(0, 120) : '–'}
                   </div>
-                  {a.price_id ? (
-                    <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {a.price_id && (
+                    <div style={{ marginTop: 8 }}>
                       <button style={btn('light')} onClick={() => deletePrice(a.price_id!)}>
                         Soft-delete price_id {a.price_id}
                       </button>
                     </div>
-                  ) : null}
+                  )}
                 </div>
               ))}
-              {!audit.length ? <div style={{ fontWeight: 900, color: '#374151' }}>Inga events.</div> : null}
+              {!audit.length && <div style={muted}>Inga events.</div>}
             </div>
           </div>
         )}
