@@ -62,6 +62,33 @@ const inputStyle: CSSProperties = {
 const muted: CSSProperties = { color: '#6b7280', fontSize: 13, fontWeight: 400 };
 const label: CSSProperties = { color: '#374151', fontSize: 14, fontWeight: 600 };
 
+function DbToggle({ isDemo, onChange }: { isDemo: boolean; onChange: (v: boolean) => void }) {
+  const seg = (active: boolean): CSSProperties => ({
+    padding: '4px 12px',
+    fontSize: 13,
+    fontWeight: 600,
+    border: 'none',
+    borderRadius: 4,
+    cursor: 'pointer',
+    background: active ? '#111827' : 'transparent',
+    color: active ? '#ffffff' : '#6b7280',
+    transition: 'background 0.15s, color 0.15s',
+  });
+  return (
+    <div style={{
+      display: 'inline-flex',
+      border: '1px solid #d1d5db',
+      borderRadius: 6,
+      padding: 2,
+      background: '#f9fafb',
+      gap: 2,
+    }}>
+      <button style={seg(!isDemo)} onClick={() => onChange(false)}>Live</button>
+      <button style={seg(isDemo)} onClick={() => onChange(true)}>Demo</button>
+    </div>
+  );
+}
+
 function fmt(iso: string) {
   return new Date(iso).toLocaleString('sv-SE');
 }
@@ -268,12 +295,7 @@ export default function AdminPage() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <span style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>Priser</span>
-                <button
-                  style={{ ...btn(isDemo ? 'light' : 'dark'), padding: '4px 12px', fontSize: 13 }}
-                  onClick={() => setIsDemo(!isDemo)}
-                >
-                  {isDemo ? 'Demo' : 'Live'}
-                </button>
+                <DbToggle isDemo={isDemo} onChange={setIsDemo} />
               </div>
 
               {/* Sort */}
