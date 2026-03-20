@@ -240,6 +240,9 @@ export default function AdminPage() {
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
             <div>
               <div style={{ fontSize: 20, fontWeight: 700, color: '#111827' }}>Admin</div>
+              <a href="/" style={{ ...btn('light'), marginTop: 4, display: 'inline-flex', alignItems: 'center', gap: 4, textDecoration: 'none', fontSize: 13, padding: '5px 10px' }}>
+                ← Tillbaka till sajten
+              </a>
               <div style={{ marginTop: 2, ...muted }}>{headline}</div>
             </div>
             <div style={{ display: 'flex', gap: 6 }}>
