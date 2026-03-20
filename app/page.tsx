@@ -376,8 +376,8 @@ export default function Page() {
       name.style.fontSize = '12px';
       name.style.color = '#111827';
       name.style.padding = '4px 8px';
-      name.style.border = '2px solid #111827';
-      name.style.boxShadow = '1px 1px 0 #111827';
+      name.style.border = '1px solid #d1d5db';
+      name.style.boxShadow = '0 0 0 1px rgba(0,0,0,0.06)';
       name.style.borderRadius = '999px';
       name.style.background = '#FFFFFF';
       name.style.display = 'none';
