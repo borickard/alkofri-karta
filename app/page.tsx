@@ -178,7 +178,7 @@ export default function Page() {
   useEffect(() => { barsRef.current = bars; }, [bars]);
   useEffect(() => { latestPricesRef.current = latestPrices; }, [latestPrices]);
 
-  const [welcomeOpen, setWelcomeOpen] = useState(true);
+  const [welcomeOpen, setWelcomeOpen] = useState(!searchParams.has('bar'));
   const [selectedBarId, setSelectedBarId] = useState<number | null>(null);
   const selectedBar = useMemo(() => (selectedBarId ? bars.find(b => b.id === selectedBarId) ?? null : null), [bars, selectedBarId]);
   const [candidate, setCandidate] = useState<Candidate | null>(null);
@@ -746,22 +746,30 @@ export default function Page() {
         <a href="/admin" className={styles.devBtn}>Admin</a>
       )}
 
-      {zoomLevel < PRICE_TEXT_ZOOM ? (
-        <div className={styles.legend}>
-          <div className={styles.legendItem}>
-            <span className={styles.legendDot} style={{ background: '#D1FAE5', borderColor: '#065F46' }} />
-            <span className={styles.legendText}>Billigt (≤35)</span>
+      <div style={{ position: 'absolute', right: 12, bottom: 12, zIndex: 30, display: 'flex', alignItems: 'flex-end', gap: 8 }}>
+        <button
+          className={styles.btn}
+          onClick={() => setWelcomeOpen(true)}
+          aria-label="Om kartan"
+          style={{ padding: '6px 12px', fontSize: 15, fontWeight: 900, lineHeight: 1 }}
+        >?</button>
+        {zoomLevel < PRICE_TEXT_ZOOM && (
+          <div className={styles.legend}>
+            <div className={styles.legendItem}>
+              <span className={styles.legendDot} style={{ background: '#D1FAE5', borderColor: '#065F46' }} />
+              <span className={styles.legendText}>Billigt (≤35)</span>
+            </div>
+            <div className={styles.legendItem}>
+              <span className={styles.legendDot} style={{ background: '#FEF3C7', borderColor: '#92400E' }} />
+              <span className={styles.legendText}>Medel (36-45)</span>
+            </div>
+            <div className={styles.legendItem}>
+              <span className={styles.legendDot} style={{ background: '#FEE2E2', borderColor: '#991B1B' }} />
+              <span className={styles.legendText}>Högt (46+)</span>
+            </div>
           </div>
-          <div className={styles.legendItem}>
-            <span className={styles.legendDot} style={{ background: '#FEF3C7', borderColor: '#92400E' }} />
-            <span className={styles.legendText}>Medel (36-45)</span>
-          </div>
-          <div className={styles.legendItem}>
-            <span className={styles.legendDot} style={{ background: '#FEE2E2', borderColor: '#991B1B' }} />
-            <span className={styles.legendText}>Högt (46+)</span>
-          </div>
-        </div>
-      ) : null}
+        )}
+      </div>
 
       {panelOpen ? (
         <div ref={panelRef} className={styles.panel}>

@@ -31,12 +31,6 @@
 }
 
 .legend {
-  position: absolute;
-  right: 12px;
-  bottom: 12px;
-  /* istället för 84px */
-  z-index: 30;
-
   background: #ffffff;
   border: 1px solid #111827;
   border-radius: 12px;
