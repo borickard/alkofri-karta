@@ -117,15 +117,17 @@
 
 .panel {
   position: absolute;
+  top: 50%;
   left: 50%;
-  bottom: 20px;
-  transform: translateX(-50%);
+  transform: translate(-50%, -50%);
   z-index: 10;
 
   width: min(420px, calc(100vw - 24px));
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
   background: var(--panel-bg);
   border: var(--border-mid);
-  box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.12);
   border-radius: var(--r);
   padding: 16px;
 

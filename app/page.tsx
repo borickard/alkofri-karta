@@ -461,8 +461,8 @@ export default function Page() {
     const map = mapRef.current;
     if (!map) return;
     const h = map.getContainer().clientHeight || 800;
-    const offsetY = Math.round(h / 6);
-    map.easeTo({ center: [lng, lat], offset: [0, offsetY], duration: 350 });
+    // Negative offset: bar appears above screen center, visible above the centered panel
+    map.easeTo({ center: [lng, lat], offset: [0, -Math.round(h / 5)], duration: 350 });
   }
 
   async function locateMe() {
@@ -598,8 +598,7 @@ export default function Page() {
       map.setPadding({ top: 0, right: 0, bottom: 0, left: 0 });
       return;
     }
-    const ph = panelRef.current?.offsetHeight ?? 220;
-    map.setPadding({ top: 0, right: 0, bottom: ph + 24, left: 0 });
+    map.setPadding({ top: 0, right: 0, bottom: 0, left: 0 });
     if (selectedBar) focusPoint(selectedBar.lng, selectedBar.lat);
     else if (candidate) focusPoint(candidate.lng, candidate.lat);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -847,18 +846,13 @@ export default function Page() {
             }
 
             if (hasPrice && priceView === 'confirm') {
-              const bucket = priceBucket(lp!.price_sek);
-              const priceColor = bucket === 'low' ? '#166534' : bucket === 'mid' ? '#92400E' : '#991B1B';
-              const priceBg = bucket === 'low' ? '#F0FDF4' : bucket === 'mid' ? '#FFFBEB' : '#FEF2F2';
-              const priceBorder = bucket === 'low' ? '#BBF7D0' : bucket === 'mid' ? '#FDE68A' : '#FECACA';
               return (
                 <>
                   <div style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#6B7280' }}>
                     Senast rapporterat pris
                   </div>
                   <div style={{
-                    background: priceBg,
-                    border: `1px solid ${priceBorder}`,
+                    background: '#f3f4f6',
                     borderRadius: 8,
                     padding: '10px 14px',
                     display: 'flex',
@@ -869,10 +863,10 @@ export default function Page() {
                       fontFamily: 'var(--font-heading)',
                       fontSize: 30,
                       fontWeight: 700,
-                      color: priceColor,
+                      color: '#111827',
                       lineHeight: 1,
                     }}>{lp!.price_sek}</span>
-                    <span style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: priceColor, fontWeight: 600 }}>kr</span>
+                    <span style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: '#111827', fontWeight: 600 }}>kr</span>
                     <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#9CA3AF', marginLeft: 'auto' }}>{fmtShort(lp!.created_at)}</span>
                   </div>
                   <div style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#6b7280' }}>
