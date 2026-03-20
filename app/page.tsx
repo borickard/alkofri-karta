@@ -724,16 +724,26 @@ export default function Page() {
           left: '50%',
           transform: 'translateX(-50%)',
           zIndex: 30,
-          background: '#ede9fe',
-          border: '2px solid #7c3aed',
-          borderRadius: 12,
-          padding: '6px 14px',
-          fontWeight: 900,
+          background: '#ffffff',
+          border: '1px solid #d1d5db',
+          boxShadow: '0 0 0 1px rgba(0,0,0,0.06)',
+          borderRadius: 4,
+          padding: '0 10px 0 14px',
+          fontWeight: 600,
           fontSize: 13,
-          color: '#5b21b6',
-          boxShadow: '2px 2px 0 #111827',
+          color: '#374151',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          height: 36,
         }}>
-          🟣 Demo-läge
+          Demo-läge
+          <button
+            onClick={() => { window.location.href = '/'; }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: '#9ca3af', padding: '0 2px', lineHeight: 1, display: 'flex', alignItems: 'center' }}
+            aria-label="Avsluta demo-läge"
+            title="Avsluta demo-läge"
+          >✕</button>
         </div>
       )}
 
@@ -870,22 +880,26 @@ export default function Page() {
                     <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#9CA3AF', marginLeft: 'auto' }}>{fmtShort(lp!.created_at)}</span>
                   </div>
                   <div style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#6b7280' }}>
-                    Stämmer det fortfarande?
+                    {status === 'confirmed' ? 'Tack för bekräftelsen!' : 'Stämmer det fortfarande?'}
                   </div>
-                  <div className={styles.btnRow}>
-                    <button
-                      className={`${styles.btn} ${styles.btnDark}`}
-                      onClick={() => setStatus('Tack för bekräftelsen!')}
-                    >
-                      ✓ Ja, stämmer
-                    </button>
-                    <button
-                      className={styles.btn}
-                      onClick={() => { setPriceView('edit'); setStatus(''); }}
-                    >
-                      Uppdatera pris
-                    </button>
-                  </div>
+                  {status !== 'confirmed' && (
+                    <div className={styles.btnRow}>
+                      <button
+                        className={`${styles.btn} ${styles.btnDark}`}
+                        style={{ flex: 1, justifyContent: 'center' }}
+                        onClick={() => setStatus('confirmed')}
+                      >
+                        ✓ Ja, stämmer
+                      </button>
+                      <button
+                        className={styles.btn}
+                        style={{ flex: 1, justifyContent: 'center' }}
+                        onClick={() => { setPriceView('edit'); setStatus(''); }}
+                      >
+                        Uppdatera pris
+                      </button>
+                    </div>
+                  )}
                 </>
               );
             }

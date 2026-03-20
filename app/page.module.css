@@ -205,6 +205,10 @@
   background: var(--bg);
   color: var(--ink);
   transition: background 0.12s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
 }
 
 .btn:hover {
@@ -334,19 +338,22 @@
 
 .devBtn {
   position: absolute;
-  left: 72px;
-  bottom: 20px;
+  left: 60px;
+  bottom: 12px;
   z-index: 30;
-  background: #7c3aed;
-  color: #ffffff;
-  border: 2px solid #111827;
-  box-shadow: 2px 2px 0 #111827;
-  border-radius: 12px;
-  padding: 8px 14px;
-  font-weight: 900;
+  background: #ffffff;
+  color: #111827;
+  border: 1px solid #d1d5db;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.06);
+  border-radius: 4px;
+  padding: 0 14px;
+  height: 44px;
+  font-weight: 600;
   font-size: 13px;
   text-decoration: none;
   cursor: pointer;
+  display: flex;
+  align-items: center;
 }
 @media (min-width: 768px) {
   .iqLogo {
