@@ -2,14 +2,13 @@
 
 :root {
   --ink: #111827;
-  --muted: #374151;
+  --muted: #6b7280;
   --bg: #ffffff;
   --panel-bg: #ffffff;
-  --frame: 2px solid var(--ink);
-  --shadow: 2px 2px 0 var(--ink);
-  --shadow-sm: 1px 1px 0 var(--ink);
-  --r: 16px;
-  --r-sm: 12px;
+  --border: 1px solid #e5e7eb;
+  --border-mid: 1px solid #d1d5db;
+  --r: 12px;
+  --r-sm: 6px;
 }
 
 .app {
@@ -119,20 +118,20 @@
 .panel {
   position: absolute;
   left: 50%;
-  bottom: 20px;                 /* lyft upp lite */
-  transform: translateX(-50%);  /* centrera */
+  bottom: 20px;
+  transform: translateX(-50%);
   z-index: 10;
 
   width: min(420px, calc(100vw - 24px));
   background: var(--panel-bg);
-  border: var(--frame);
-  box-shadow: var(--shadow);
+  border: var(--border-mid);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.10);
   border-radius: var(--r);
-  padding: 12px;
+  padding: 16px;
 
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 .panelCollapsed {
@@ -159,8 +158,8 @@
 }
 
 .status {
-  font-weight: 900;
-  color: var(--ink);
+  font-weight: 500;
+  color: var(--muted);
   font-size: 13px;
 }
 
@@ -172,16 +171,20 @@
 }
 
 .input {
-  border: var(--frame);
-  box-shadow: var(--shadow-sm);
+  border: var(--border-mid);
   border-radius: var(--r-sm);
-  padding: 10px 12px;
-  font-weight: 900;
+  padding: 9px 12px;
+  font-weight: 500;
+  font-size: 14px;
   outline: none;
   width: 160px;
+  color: #111827;
+  background: #ffffff;
+  transition: border-color 0.15s;
+}
 
-  color: #111827;          /* ← svart text */
-  background: #ffffff;    /* säkerställ vit bakgrund */
+.input:focus {
+  border-color: #111827;
 }
 
 .btnRow {
@@ -191,35 +194,49 @@
 }
 
 .btn {
-  border: var(--frame);
-  box-shadow: var(--shadow);
+  border: var(--border-mid);
   border-radius: var(--r-sm);
-  padding: 10px 12px;
-  font-weight: 1000;
+  padding: 9px 14px;
+  font-weight: 600;
+  font-size: 14px;
   cursor: pointer;
   background: var(--bg);
   color: var(--ink);
+  transition: background 0.12s;
+}
+
+.btn:hover {
+  background: #f9fafb;
 }
 
 .btn:active {
-  transform: translate(1px, 1px);
-  box-shadow: 1px 1px 0 var(--ink);
+  background: #f3f4f6;
 }
 
 .btnDark {
   background: var(--ink);
   color: var(--bg);
+  border-color: var(--ink);
+}
+
+.btnDark:hover {
+  background: #1f2937;
+}
+
+.btnDark:active {
+  background: #374151;
 }
 
 .btnDanger {
   background: #b91c1c;
   color: var(--bg);
+  border-color: #b91c1c;
 }
 
 .hint {
-  font-weight: 900;
+  font-weight: 400;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .kv {
@@ -238,11 +255,9 @@
 }
 
 .historyItem {
-  border: var(--frame);
-  box-shadow: var(--shadow-sm);
-  border-radius: 14px;
-  padding: 10px 12px;
-  background: var(--bg);
+  border-radius: var(--r-sm);
+  padding: 7px 10px;
+  background: #f9fafb;
   display: flex;
   justify-content: space-between;
   gap: 10px;
@@ -250,13 +265,15 @@
 }
 
 .historyLeft {
-  font-weight: 1000;
+  font-weight: 600;
   color: var(--ink);
+  font-size: 13px;
 }
 
 .historyRight {
-  font-weight: 900;
+  font-weight: 400;
   color: var(--muted);
+  font-size: 12px;
 }
 
 /* Welcome overlay */

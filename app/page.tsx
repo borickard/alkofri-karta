@@ -777,7 +777,7 @@ export default function Page() {
           <div className={styles.panelTitleRow}>
             <div style={{
               fontFamily: 'var(--font-heading)',
-              fontSize: 26,
+              fontSize: 22,
               lineHeight: 1.2,
               color: '#111827',
               flex: 1,
@@ -858,24 +858,24 @@ export default function Page() {
                   </div>
                   <div style={{
                     background: priceBg,
-                    border: `2px solid ${priceBorder}`,
+                    border: `1px solid ${priceBorder}`,
                     borderRadius: 8,
-                    padding: '12px 16px',
+                    padding: '10px 14px',
                     display: 'flex',
                     alignItems: 'baseline',
-                    gap: 6,
+                    gap: 5,
                   }}>
                     <span style={{
                       fontFamily: 'var(--font-heading)',
-                      fontSize: 36,
-                      fontWeight: 900,
+                      fontSize: 30,
+                      fontWeight: 700,
                       color: priceColor,
                       lineHeight: 1,
                     }}>{lp!.price_sek}</span>
-                    <span style={{ fontFamily: 'var(--font-body)', fontSize: 16, color: priceColor, fontWeight: 700 }}>kr</span>
+                    <span style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: priceColor, fontWeight: 600 }}>kr</span>
                     <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#9CA3AF', marginLeft: 'auto' }}>{fmtShort(lp!.created_at)}</span>
                   </div>
-                  <div style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: '#374151', fontWeight: 700 }}>
+                  <div style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#6b7280' }}>
                     Stämmer det fortfarande?
                   </div>
                   <div className={styles.btnRow}>
