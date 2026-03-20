@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useSearchParams } from 'next/navigation';
 
 type AuditRow = {
   id: number;
@@ -64,11 +65,12 @@ function fmt(iso: string) {
 }
 
 export default function AdminPage() {
+  const searchParams = useSearchParams();
   const [tab, setTab] = useState<'prices' | 'audit'>('prices');
   const [days, setDays] = useState(30);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState('');
-  const [isDemo, setIsDemo] = useState(false);
+  const [isDemo, setIsDemo] = useState(() => searchParams.has('demo'));
 
   const [prices, setPrices] = useState<PriceRow[]>([]);
   const [audit, setAudit] = useState<AuditRow[]>([]);
@@ -104,6 +106,7 @@ export default function AdminPage() {
   }
 
   useEffect(() => {
+    window.history.replaceState(null, '', isDemo ? '?demo' : window.location.pathname);
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, days, includeDeleted, isDemo]);
