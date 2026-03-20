@@ -186,6 +186,7 @@ export default function Page() {
   const [priceInput, setPriceInput] = useState('');
   const [status, setStatus] = useState('');
   const [history, setHistory] = useState<LatestPrice[]>([]);
+  const [priceView, setPriceView] = useState<'confirm' | 'edit'>('confirm');
 
   async function loadBarsAndPrices() {
     console.log('loadBarsAndPrices, isDemoMode =', isDemoMode);
@@ -345,6 +346,7 @@ export default function Page() {
         setPanelOpen(true);
         setStatus('');
         setPriceInput('');
+        setPriceView('confirm');
         loadHistory(b.id).catch(console.error);
         focusPoint(b.lng, b.lat);
       });
@@ -491,6 +493,7 @@ export default function Page() {
     if (!j.ok) { setStatus(`Fel: ${j.error || 'okänt fel'}`); return; }
     setStatus('Sparat.');
     setPriceInput('');
+    setPriceView('confirm');
     await loadBarsAndPrices();
     await loadHistory(selectedBar.id);
   }
@@ -567,6 +570,7 @@ export default function Page() {
     setStatus('');
     setHistory([]);
     setPriceInput('');
+    setPriceView('confirm');
   }
 
   function onPanelKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -634,6 +638,7 @@ export default function Page() {
       setStatus('');
       setHistory([]);
       setPriceInput('');
+      setPriceView('confirm');
       focusPoint(cand.lng, cand.lat);
     };
 
@@ -738,128 +743,189 @@ export default function Page() {
 
       {panelOpen ? (
         <div ref={panelRef} className={styles.panel}>
+          {/* Title row */}
           <div className={styles.panelTitleRow}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{
-                fontFamily: 'var(--font-heading)',
-                fontSize: 22,
-                lineHeight: 1.2,
-                color: '#111827',
-                marginBottom: 4,
-              }}>
-                {selectedBar ? selectedBar.name : candidate ? candidate.name : 'Plats'}
-              </div>
-              <div style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: '#111827', marginTop: 4 }}>
-                Vet du vad alkoholfri öl kostar här? Fyll i priset nedan.
-              </div>
+            <div style={{
+              fontFamily: 'var(--font-heading)',
+              fontSize: 26,
+              lineHeight: 1.2,
+              color: '#111827',
+              flex: 1,
+              minWidth: 0,
+            }}>
+              {selectedBar ? selectedBar.name : candidate ? candidate.name : 'Plats'}
             </div>
-            <button className={styles.btn} onClick={closePanel}>Stäng</button>
+            <button
+              onClick={closePanel}
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: 20,
+                lineHeight: 1,
+                color: '#6B7280',
+                padding: '0 4px',
+                flexShrink: 0,
+              }}
+              aria-label="Stäng"
+            >✕</button>
           </div>
 
           {status ? <div className={styles.status}>{status}</div> : null}
 
-          {/* Prissektion */}
-          {selectedBar && latestPrices.get(selectedBar.id) ? (
-            <div style={{
-              fontFamily: 'var(--font-body)',
-              fontSize: 13,
-              color: '#6B7280',
-              marginBottom: 6,
-            }}>
-              Senast rapporterat: <strong style={{ color: '#111827' }}>{latestPrices.get(selectedBar.id)!.price_sek} kr</strong>
-            </div>
-          ) : null}
-          <div className={styles.fieldRow}>
-            <input
-              className={styles.input}
-              inputMode="numeric"
-              placeholder="Pris (10-150)"
-              value={priceInput}
-              onChange={(e) => setPriceInput(e.target.value)}
-              onKeyDown={onPanelKeyDown}
-            />
-            <button
-              className={`${styles.btn} ${styles.btnDark}`}
-              onClick={() => (selectedBar ? savePriceSelected() : savePriceCandidate())}
-            >
-              Spara pris
-            </button>
-          </div>
+          {/* Price section */}
+          {(() => {
+            const lp = selectedBar ? latestPrices.get(selectedBar.id) : null;
+            const hasPrice = !!lp;
+            const isNoNa = selectedBar?.no_na_beer;
 
-          {selectedBar && history.length ? (
-            <div className={styles.history}>
-              <div className={styles.hint}>Senaste 5 priser</div>
-              {history.map((h, idx) => (
-                <div key={`${h.created_at}-${idx}`} className={styles.historyItem}>
-                  <div className={styles.historyLeft}>{h.price_sek} kr</div>
-                  <div className={styles.historyRight}>{fmtShort(h.created_at)}</div>
+            if (isNoNa) {
+              // Already marked as no NA beer — show state + allow price correction
+              return (
+                <>
+                  <div style={{
+                    background: '#FEF2F2',
+                    border: '2px solid #FECACA',
+                    borderRadius: 8,
+                    padding: '10px 14px',
+                    fontFamily: 'var(--font-body)',
+                    fontSize: 14,
+                    color: '#991B1B',
+                    fontWeight: 700,
+                  }}>
+                    ✕ Alkoholfri öl uppges saknas här
+                  </div>
+                  <div className={styles.hint}>Har de börjat servera? Lägg till ett pris nedan.</div>
+                  <div className={styles.fieldRow}>
+                    <input
+                      className={styles.input}
+                      inputMode="numeric"
+                      placeholder="Pris (10–150 kr)"
+                      value={priceInput}
+                      onChange={(e) => setPriceInput(e.target.value)}
+                      onKeyDown={onPanelKeyDown}
+                    />
+                    <button
+                      className={`${styles.btn} ${styles.btnDark}`}
+                      onClick={() => (selectedBar ? savePriceSelected() : savePriceCandidate())}
+                    >
+                      Lägg till pris
+                    </button>
+                  </div>
+                </>
+              );
+            }
+
+            if (hasPrice && priceView === 'confirm') {
+              const bucket = priceBucket(lp!.price_sek);
+              const priceColor = bucket === 'low' ? '#166534' : bucket === 'mid' ? '#92400E' : '#991B1B';
+              const priceBg = bucket === 'low' ? '#F0FDF4' : bucket === 'mid' ? '#FFFBEB' : '#FEF2F2';
+              const priceBorder = bucket === 'low' ? '#BBF7D0' : bucket === 'mid' ? '#FDE68A' : '#FECACA';
+              return (
+                <>
+                  <div style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#6B7280' }}>
+                    Senast rapporterat pris
+                  </div>
+                  <div style={{
+                    background: priceBg,
+                    border: `2px solid ${priceBorder}`,
+                    borderRadius: 8,
+                    padding: '12px 16px',
+                    display: 'flex',
+                    alignItems: 'baseline',
+                    gap: 6,
+                  }}>
+                    <span style={{
+                      fontFamily: 'var(--font-heading)',
+                      fontSize: 36,
+                      fontWeight: 900,
+                      color: priceColor,
+                      lineHeight: 1,
+                    }}>{lp!.price_sek}</span>
+                    <span style={{ fontFamily: 'var(--font-body)', fontSize: 16, color: priceColor, fontWeight: 700 }}>kr</span>
+                    <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#9CA3AF', marginLeft: 'auto' }}>{fmtShort(lp!.created_at)}</span>
+                  </div>
+                  <div style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: '#374151', fontWeight: 700 }}>
+                    Stämmer det fortfarande?
+                  </div>
+                  <div className={styles.btnRow}>
+                    <button
+                      className={`${styles.btn} ${styles.btnDark}`}
+                      onClick={() => setStatus('Tack för bekräftelsen!')}
+                    >
+                      ✓ Ja, stämmer
+                    </button>
+                    <button
+                      className={styles.btn}
+                      onClick={() => { setPriceView('edit'); setStatus(''); }}
+                    >
+                      Uppdatera pris
+                    </button>
+                  </div>
+                </>
+              );
+            }
+
+            // No price, or edit mode
+            return (
+              <>
+                {!hasPrice && (
+                  <div style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: '#6B7280' }}>
+                    Inga priser rapporterade än.
+                  </div>
+                )}
+                <div className={styles.fieldRow}>
+                  <input
+                    className={styles.input}
+                    inputMode="numeric"
+                    placeholder="Pris (10–150 kr)"
+                    value={priceInput}
+                    onChange={(e) => setPriceInput(e.target.value)}
+                    onKeyDown={onPanelKeyDown}
+                  />
+                  <button
+                    className={`${styles.btn} ${styles.btnDark}`}
+                    onClick={() => (selectedBar ? savePriceSelected() : savePriceCandidate())}
+                  >
+                    {hasPrice ? 'Spara nytt pris' : 'Lägg till pris'}
+                  </button>
+                  {hasPrice && (
+                    <button
+                      className={styles.btn}
+                      onClick={() => { setPriceView('confirm'); setStatus(''); setPriceInput(''); }}
+                    >
+                      Avbryt
+                    </button>
+                  )}
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className={styles.hint}>Tips: Enter sparar pris. Escape stänger.</div>
-          )}
+                {selectedBar && history.length > 0 && (
+                  <div className={styles.history}>
+                    <div className={styles.hint}>Senaste {history.length} priser</div>
+                    {history.map((h, idx) => (
+                      <div key={`${h.created_at}-${idx}`} className={styles.historyItem}>
+                        <div className={styles.historyLeft}>{h.price_sek} kr</div>
+                        <div className={styles.historyRight}>{fmtShort(h.created_at)}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            );
+          })()}
 
           {/* Separator */}
-          <div style={{ borderTop: '1px solid #E5E7EB', margin: '12px 0' }} />
+          <div style={{ borderTop: '1px solid #E5E7EB', margin: '4px 0' }} />
 
-          {/* Saknar alkoholfri öl */}
-          <button
-            onClick={() => (selectedBar ? reportNoNaSelected() : reportNoNaCandidate())}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              background: 'none',
-              border: 'none',
-              padding: '4px 0',
-              cursor: 'pointer',
-              fontFamily: 'var(--font-body)',
-              fontSize: 14,
-              color: '#374151',
-              width: '100%',
-              textAlign: 'left',
-            }}
-            onMouseEnter={e => (e.currentTarget.style.color = '#111827')}
-            onMouseLeave={e => (e.currentTarget.style.color = '#374151')}
-          >
-            <span style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 22,
-              height: 22,
-              borderRadius: '999px',
-              border: '2px solid #9CA3AF',
-              fontSize: 11,
-              fontWeight: 900,
-              color: '#6B7280',
-              flexShrink: 0,
-            }}>✕</span>
-            Markera att alkoholfri öl saknas
-          </button>
-
-          {/* Rapportera fel pris */}
-          {selectedBar ? (
-            <div style={{ marginTop: 12, textAlign: 'center' }}>
-              <button
-                onClick={reportWrongPrice}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  padding: 0,
-                  cursor: 'pointer',
-                  fontFamily: 'var(--font-body)',
-                  fontSize: 13,
-                  color: '#6B7280',
-                  textDecoration: 'underline',
-                  textUnderlineOffset: 3,
-                }}
-              >
-                Fel pris? Rapportera
-              </button>
-            </div>
-          ) : null}
+          {/* No NA beer button — only show if not already marked */}
+          {!selectedBar?.no_na_beer && (
+            <button
+              className={styles.btn}
+              onClick={() => (selectedBar ? reportNoNaSelected() : reportNoNaCandidate())}
+              style={{ width: '100%', textAlign: 'left' }}
+            >
+              ✕ Alkoholfri öl saknas här
+            </button>
+          )}
         </div>
       ) : null}
 
