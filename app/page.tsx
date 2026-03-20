@@ -251,6 +251,7 @@ export default function Page() {
     setLatestPrices(latest);
     renderMarkers(barsRows, latest);
     console.log('pricesData latest map size:', latest.size);
+    return barsRows;
   }
 
   async function loadHistory(barId: number) {
@@ -347,6 +348,7 @@ export default function Page() {
         setStatus('');
         setPriceInput('');
         setPriceView('confirm');
+        window.history.replaceState(null, '', buildBarUrl(b.id));
         loadHistory(b.id).catch(console.error);
         focusPoint(b.lng, b.lat);
       });
@@ -493,9 +495,9 @@ export default function Page() {
     if (!j.ok) { setStatus(`Fel: ${j.error || 'okänt fel'}`); return; }
     setStatus('Sparat.');
     setPriceInput('');
-    setPriceView('confirm');
     await loadBarsAndPrices();
     await loadHistory(selectedBar.id);
+    setPriceView('confirm');
   }
 
   async function savePriceCandidate() {
@@ -563,7 +565,15 @@ export default function Page() {
     await loadHistory(selectedBar.id);
   }
 
+  function buildBarUrl(barId: number | null) {
+    const parts: string[] = [];
+    if (isDemoMode) parts.push('demo');
+    if (barId !== null) parts.push(`bar=${barId}`);
+    return parts.length ? `?${parts.join('&')}` : window.location.pathname;
+  }
+
   function closePanel() {
+    window.history.replaceState(null, '', buildBarUrl(null));
     setPanelOpen(false);
     setSelectedBarId(null);
     setCandidate(null);
@@ -667,7 +677,19 @@ export default function Page() {
 
     (async () => {
       try {
-        await loadBarsAndPrices();
+        const loaded = await loadBarsAndPrices();
+        const barIdParam = searchParams.get('bar');
+        if (barIdParam) {
+          const barId = Number(barIdParam);
+          const bar = loaded?.find(b => b.id === barId);
+          if (bar) {
+            setSelectedBarId(bar.id);
+            setPanelOpen(true);
+            setPriceView('confirm');
+            await loadHistory(bar.id);
+            focusPoint(bar.lng, bar.lat);
+          }
+        }
       } catch (err: unknown) {
         console.error(err);
         setStatus(err instanceof Error ? err.message : 'Kunde inte ladda data.');
