@@ -358,8 +358,9 @@ export default function AdminPage() {
                       {p.deleted_at ? `Deletad: ${fmt(p.deleted_at)}` : 'Aktiv'}
                     </div>
                   </div>
-                  <div style={{ marginTop: 8 }}>
+                  <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
                     <button style={btn('light')} onClick={() => deletePrice(p.id)}>Soft-delete</button>
+                    <a href={isDemo ? `/?demo&bar=${p.bar_id}` : `/?bar=${p.bar_id}`} style={{ ...btn('light'), textDecoration: 'none' }}>Visa på karta</a>
                   </div>
                 </div>
               ))}
