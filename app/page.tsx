@@ -951,9 +951,6 @@ export default function Page() {
             );
           })()}
 
-          {/* Separator */}
-          <div style={{ borderTop: '1px solid #E5E7EB', margin: '4px 0' }} />
-
           {/* No NA beer button — only show if not already marked */}
           {!selectedBar?.no_na_beer && (
             <button
