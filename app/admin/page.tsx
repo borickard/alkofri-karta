@@ -206,12 +206,22 @@ export default function AdminPage() {
 
             <div style={{ flex: 1 }} />
 
-            <button
-              style={{ ...btn('light'), border: '1px solid #d1d5db' }}
-              onClick={() => setIsDemo(!isDemo)}
-            >
-              {isDemo ? 'Demo-databas' : 'Skarp databas'}
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{
+                padding: '4px 10px',
+                borderRadius: 99,
+                fontSize: 13,
+                fontWeight: 600,
+                background: isDemo ? '#fef9c3' : '#dcfce7',
+                color: isDemo ? '#854d0e' : '#166534',
+                border: `1px solid ${isDemo ? '#fde047' : '#86efac'}`,
+              }}>
+                {isDemo ? 'Demo' : 'Skarp'}
+              </span>
+              <button style={btn('light')} onClick={() => setIsDemo(!isDemo)}>
+                Byt till {isDemo ? 'skarp' : 'demo'}
+              </button>
+            </div>
             <button style={btn('light')} onClick={bulkDeleteLastDays}>
               Rensa {days} dagar
             </button>
