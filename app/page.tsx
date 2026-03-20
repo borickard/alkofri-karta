@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import maplibregl, { Map as MLMap, MapMouseEvent } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { createClient } from '@supabase/supabase-js';
@@ -164,11 +165,8 @@ export default function Page() {
   const [zoomLevel, setZoomLevel] = useState(12);
   const markersRef = useRef<Map<number, maplibregl.Marker>>(new Map());
 
-  const [isDemoMode] = useState(() =>
-    typeof window !== 'undefined'
-      ? new URLSearchParams(window.location.search).has('demo')
-      : false
-  );
+  const searchParams = useSearchParams();
+  const isDemoMode = searchParams.has('demo');
 
   const [bars, setBars] = useState<Bar[]>([]);
   const [latestPrices, setLatestPrices] = useState<Map<number, LatestPrice>>(new Map());
