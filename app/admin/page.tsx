@@ -248,9 +248,6 @@ export default function AdminPage() {
 
             <div style={{ flex: 1 }} />
 
-            <button style={btn('light')} onClick={() => setIsDemo(!isDemo)}>
-              Byt till {isDemo ? 'skarp' : 'demo'}
-            </button>
             <button style={btn('light')} onClick={bulkDeleteLastDays}>
               Rensa {days} dagar
             </button>
@@ -268,12 +265,15 @@ export default function AdminPage() {
         {tab === 'prices' && (
           <div style={card({ padding: 16 })}>
             {/* Section heading with db indicator */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
-              <div>
-                <span style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>
-                  {isDemo ? 'Demo-databas' : 'Skarp databas'}
-                </span>
-                <span style={{ ...muted, marginLeft: 8 }}>— senaste prisrader</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>Priser</span>
+                <button
+                  style={{ ...btn(isDemo ? 'light' : 'dark'), padding: '4px 12px', fontSize: 13 }}
+                  onClick={() => setIsDemo(!isDemo)}
+                >
+                  {isDemo ? 'Demo' : 'Live'}
+                </button>
               </div>
 
               {/* Sort */}
@@ -346,10 +346,15 @@ export default function AdminPage() {
         {/* Audit */}
         {tab === 'audit' && (
           <div style={card({ padding: 16 })}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 4 }}>
-              {isDemo ? 'Demo-databas' : 'Skarp databas'}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+              <span style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>Audit</span>
+              <button
+                style={{ ...btn(isDemo ? 'light' : 'dark'), padding: '4px 12px', fontSize: 13 }}
+                onClick={() => setIsDemo(!isDemo)}
+              >
+                {isDemo ? 'Demo' : 'Live'}
+              </button>
             </div>
-            <div style={{ ...muted, marginBottom: 14 }}>Audit events</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {audit.map((a) => (
                 <div key={a.id} style={card({ padding: '10px 12px' })}>
