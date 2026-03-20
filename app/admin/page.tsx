@@ -24,6 +24,8 @@ type PriceRow = {
   deleted_at: string | null;
 };
 
+type SortKey = 'newest' | 'oldest' | 'highest' | 'lowest';
+
 const card = (extra?: CSSProperties): CSSProperties => ({
   background: '#ffffff',
   border: '1px solid #e5e7eb',
@@ -64,6 +66,25 @@ function fmt(iso: string) {
   return new Date(iso).toLocaleString('sv-SE');
 }
 
+function percentile(sorted: number[], p: number): number {
+  if (!sorted.length) return 0;
+  const idx = (p / 100) * (sorted.length - 1);
+  const lo = Math.floor(idx);
+  const hi = Math.ceil(idx);
+  return Math.round(sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo));
+}
+
+function calcStats(rows: PriceRow[]) {
+  const active = rows.filter(r => !r.deleted_at).map(r => r.price_sek);
+  if (!active.length) return null;
+  const sorted = [...active].sort((a, b) => a - b);
+  const avg = Math.round(active.reduce((s, v) => s + v, 0) / active.length);
+  const median = percentile(sorted, 50);
+  const p25 = percentile(sorted, 25);
+  const p75 = percentile(sorted, 75);
+  return { count: active.length, avg, median, p25, p75, min: sorted[0], max: sorted[sorted.length - 1] };
+}
+
 export default function AdminPage() {
   const searchParams = useSearchParams();
   const [tab, setTab] = useState<'prices' | 'audit'>('prices');
@@ -71,6 +92,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState('');
   const [isDemo, setIsDemo] = useState(() => searchParams.has('demo'));
+  const [sortKey, setSortKey] = useState<SortKey>('newest');
 
   const [prices, setPrices] = useState<PriceRow[]>([]);
   const [audit, setAudit] = useState<AuditRow[]>([]);
@@ -78,13 +100,23 @@ export default function AdminPage() {
 
   const headline = useMemo(() => (tab === 'prices' ? 'Prishistorik' : 'Audit-logg'), [tab]);
 
+  const sortedPrices = useMemo(() => {
+    const copy = [...prices];
+    if (sortKey === 'newest') return copy.sort((a, b) => b.created_at.localeCompare(a.created_at));
+    if (sortKey === 'oldest') return copy.sort((a, b) => a.created_at.localeCompare(b.created_at));
+    if (sortKey === 'highest') return copy.sort((a, b) => b.price_sek - a.price_sek);
+    if (sortKey === 'lowest') return copy.sort((a, b) => a.price_sek - b.price_sek);
+    return copy;
+  }, [prices, sortKey]);
+
+  const stats = useMemo(() => calcStats(prices), [prices]);
+
   async function load() {
     setLoading(true);
     setStatus('');
     try {
       if (tab === 'prices') {
-        const url = `/api/admin/prices?days=${encodeURIComponent(days)}&limit=200&include_deleted=${includeDeleted ? '1' : '0'
-          }&demo=${isDemo ? '1' : '0'}`;
+        const url = `/api/admin/prices?days=${encodeURIComponent(days)}&limit=200&include_deleted=${includeDeleted ? '1' : '0'}&demo=${isDemo ? '1' : '0'}`;
         const r = await fetch(url, { cache: 'no-store' });
         const j = await r.json();
         if (!j.ok) throw new Error(j.error || 'Kunde inte ladda priser');
@@ -165,6 +197,13 @@ export default function AdminPage() {
     }
   }
 
+  const sortOptions: { key: SortKey; label: string }[] = [
+    { key: 'newest', label: 'Senast' },
+    { key: 'oldest', label: 'Äldst' },
+    { key: 'highest', label: 'Högst' },
+    { key: 'lowest', label: 'Lägst' },
+  ];
+
   return (
     <div style={{ minHeight: '100dvh', background: '#f3f4f6', padding: 16 }}>
       <div style={{ maxWidth: 980, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -209,22 +248,9 @@ export default function AdminPage() {
 
             <div style={{ flex: 1 }} />
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{
-                padding: '4px 10px',
-                borderRadius: 99,
-                fontSize: 13,
-                fontWeight: 600,
-                background: isDemo ? '#fef9c3' : '#dcfce7',
-                color: isDemo ? '#854d0e' : '#166534',
-                border: `1px solid ${isDemo ? '#fde047' : '#86efac'}`,
-              }}>
-                {isDemo ? 'Demo' : 'Skarp'}
-              </span>
-              <button style={btn('light')} onClick={() => setIsDemo(!isDemo)}>
-                Byt till {isDemo ? 'skarp' : 'demo'}
-              </button>
-            </div>
+            <button style={btn('light')} onClick={() => setIsDemo(!isDemo)}>
+              Byt till {isDemo ? 'skarp' : 'demo'}
+            </button>
             <button style={btn('light')} onClick={bulkDeleteLastDays}>
               Rensa {days} dagar
             </button>
@@ -240,10 +266,60 @@ export default function AdminPage() {
 
         {/* Prices */}
         {tab === 'prices' && (
-          <div style={card({ padding: 12 })}>
-            <div style={{ ...label, marginBottom: 10 }}>Senaste prisrader</div>
+          <div style={card({ padding: 16 })}>
+            {/* Section heading with db indicator */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
+              <div>
+                <span style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>
+                  {isDemo ? 'Demo-databas' : 'Skarp databas'}
+                </span>
+                <span style={{ ...muted, marginLeft: 8 }}>— senaste prisrader</span>
+              </div>
+
+              {/* Sort */}
+              <div style={{ display: 'flex', gap: 4 }}>
+                {sortOptions.map(o => (
+                  <button
+                    key={o.key}
+                    style={{
+                      ...btn(sortKey === o.key ? 'dark' : 'light'),
+                      padding: '5px 10px',
+                      fontSize: 13,
+                    }}
+                    onClick={() => setSortKey(o.key)}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Stats */}
+            {stats && (
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))',
+                gap: 8,
+                marginBottom: 16,
+              }}>
+                {[
+                  { label: 'Snitt', value: `${stats.avg} kr` },
+                  { label: 'Median', value: `${stats.median} kr` },
+                  { label: 'Topp 25%', value: `≥ ${stats.p75} kr` },
+                  { label: 'Mitten 50%', value: `${stats.p25}–${stats.p75} kr` },
+                  { label: 'Botten 25%', value: `≤ ${stats.p25} kr` },
+                  { label: 'Antal', value: `${stats.count} st` },
+                ].map(s => (
+                  <div key={s.label} style={{ background: '#f9fafb', borderRadius: 6, padding: '8px 10px' }}>
+                    <div style={{ ...muted, fontSize: 11, marginBottom: 2 }}>{s.label}</div>
+                    <div style={{ fontWeight: 600, fontSize: 14, color: '#111827' }}>{s.value}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {prices.map((p) => (
+              {sortedPrices.map((p) => (
                 <div key={p.id} style={card({ padding: '10px 12px' })}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
                     <div style={{ fontWeight: 600, color: '#111827', fontSize: 14 }}>
@@ -262,15 +338,18 @@ export default function AdminPage() {
                   </div>
                 </div>
               ))}
-              {!prices.length && <div style={muted}>Inga rader.</div>}
+              {!sortedPrices.length && <div style={muted}>Inga rader.</div>}
             </div>
           </div>
         )}
 
         {/* Audit */}
         {tab === 'audit' && (
-          <div style={card({ padding: 12 })}>
-            <div style={{ ...label, marginBottom: 10 }}>Audit events</div>
+          <div style={card({ padding: 16 })}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 4 }}>
+              {isDemo ? 'Demo-databas' : 'Skarp databas'}
+            </div>
+            <div style={{ ...muted, marginBottom: 14 }}>Audit events</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {audit.map((a) => (
                 <div key={a.id} style={card({ padding: '10px 12px' })}>
