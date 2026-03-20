@@ -1,0 +1,37 @@
+export const runtime = 'nodejs';
+
+import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+
+function jsonError(message: string, status = 400) {
+  return NextResponse.json({ ok: false, error: message }, { status });
+}
+
+export async function GET(req: Request) {
+  try {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!url || !serviceKey) return jsonError('Server env saknas (SUPABASE_SERVICE_ROLE_KEY).', 500);
+
+    const supabase = createClient(url, serviceKey, { auth: { persistSession: false } });
+
+    const u = new URL(req.url);
+    const days = Number(u.searchParams.get('days') || '7');
+    const limit = Math.min(500, Math.max(20, Number(u.searchParams.get('limit') || '200')));
+
+    const since = new Date(Date.now() - Math.max(1, days) * 24 * 60 * 60 * 1000).toISOString();
+
+    const { data, error } = await supabase
+      .from('audit_events')
+      .select('id,created_at,action,bar_id,price_id,price_sek,ip_hash,user_agent,meta')
+      .gte('created_at', since)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) return jsonError(`DB: ${error.message}`, 500);
+
+    return NextResponse.json({ ok: true, days, limit, rows: data ?? [] });
+  } catch (e: unknown) {
+    return jsonError(e instanceof Error ? e.message : 'Server error', 500);
+  }
+}
