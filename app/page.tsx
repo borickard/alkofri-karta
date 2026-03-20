@@ -748,10 +748,10 @@ export default function Page() {
 
       <div style={{ position: 'absolute', right: 12, bottom: 12, zIndex: 30, display: 'flex', alignItems: 'flex-end', gap: 8 }}>
         <button
-          className={styles.btn}
+          className={styles.mapBtn}
           onClick={() => setWelcomeOpen(true)}
           aria-label="Om kartan"
-          style={{ padding: '6px 12px', fontSize: 15, fontWeight: 900, lineHeight: 1 }}
+          title="Om kartan"
         >?</button>
         {zoomLevel < PRICE_TEXT_ZOOM && (
           <div className={styles.legend}>
