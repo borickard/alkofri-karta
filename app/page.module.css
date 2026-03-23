@@ -409,28 +409,16 @@
 }
 
 .filterBtnOn {
-  background: #111827;
-  color: #ffffff;
-  border-color: #111827;
+  /* bg/border/color set via inline style per tier */
 }
 
 .filterBtnOn:hover {
-  background: #1f2937;
-  border-color: #1f2937;
+  filter: brightness(0.95);
 }
 
 .filterBtnOff {
-  background: #f9fafb;
+  background: #f3f4f6;
   color: #9ca3af;
   border-color: #e5e7eb;
-}
-
-.filterDot {
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  border: 1.5px solid;
-  display: inline-block;
-  flex-shrink: 0;
 }
 

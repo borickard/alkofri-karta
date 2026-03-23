@@ -239,7 +239,13 @@ export default function Page() {
   const [history, setHistory] = useState<LatestPrice[]>([]);
   const [priceView, setPriceView] = useState<'confirm' | 'edit'>('confirm');
 
-  const [activeColors, setActiveColors] = useState<Set<PriceTier>>(() => new Set(['green', 'yellow', 'red']));
+  const [activeColors, setActiveColors] = useState<Set<PriceTier>>(() => {
+    const param = searchParams.get('colors');
+    if (!param) return new Set<PriceTier>(['green', 'yellow', 'red']);
+    const all = new Set<PriceTier>(['green', 'yellow', 'red']);
+    const parsed = param.split(',').filter((v): v is PriceTier => all.has(v as PriceTier));
+    return parsed.length ? new Set(parsed) : new Set<PriceTier>(['green', 'yellow', 'red']);
+  });
   const [activeTypes, setActiveTypes] = useState<Set<VenueType>>(() => new Set(['bar', 'food', 'hotel', 'other']));
   const activeColorsRef = useRef<Set<PriceTier>>(new Set(['green', 'yellow', 'red']));
   const activeTypesRef = useRef<Set<VenueType>>(new Set(['bar', 'food', 'hotel', 'other']));
@@ -462,6 +468,7 @@ export default function Page() {
     activeColorsRef.current = next;
     setActiveColors(next);
     reRenderWithFilters(next, activeTypesRef.current);
+    window.history.replaceState(null, '', buildBarUrl(selectedBarId, next));
   }
 
   function toggleType(vtype: VenueType) {
@@ -580,10 +587,12 @@ export default function Page() {
     await loadHistory(selectedBar.id);
   }
 
-  function buildBarUrl(barId: number | null) {
+  function buildBarUrl(barId: number | null, colors?: Set<PriceTier>) {
+    const c = colors ?? activeColorsRef.current;
     const parts: string[] = [];
     if (isDemoMode) parts.push('demo');
     if (barId !== null) parts.push(`bar=${barId}`);
+    if (c.size < 3) parts.push(`colors=${(['green', 'yellow', 'red'] as PriceTier[]).filter(t => c.has(t)).join(',')}`);
     return parts.length ? `?${parts.join('&')}` : window.location.pathname;
   }
 
@@ -774,17 +783,16 @@ export default function Page() {
       {/* Filter toolbar */}
       <div className={styles.filterBar}>
         {([
-          { tier: 'green' as PriceTier, bg: '#D1FAE5', border: '#065F46', label: '≤35 kr' },
-          { tier: 'yellow' as PriceTier, bg: '#FEF3C7', border: '#92400E', label: '36–45 kr' },
-          { tier: 'red' as PriceTier, bg: '#FEE2E2', border: '#991B1B', label: '46+ kr' },
+          { tier: 'green' as PriceTier, bg: '#D1FAE5', border: '#6ee7b7', label: '≤35 kr' },
+          { tier: 'yellow' as PriceTier, bg: '#FEF3C7', border: '#fcd34d', label: '36–45 kr' },
+          { tier: 'red' as PriceTier, bg: '#FEE2E2', border: '#fca5a5', label: '46+ kr' },
         ]).map(({ tier, bg, border, label }) => (
           <button
             key={tier}
             className={`${styles.filterBtn} ${activeColors.has(tier) ? styles.filterBtnOn : styles.filterBtnOff}`}
+            style={activeColors.has(tier) ? { background: bg, borderColor: border, color: '#111827' } : undefined}
             onClick={() => toggleColor(tier)}
-            title={label}
           >
-            <span className={styles.filterDot} style={{ background: bg, borderColor: border }} />
             {label}
           </button>
         ))}
