@@ -362,3 +362,70 @@
   }
 }
 
+/* Filter toolbar */
+.filterBar {
+  position: absolute;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.06);
+  border-radius: 4px;
+  padding: 3px;
+  max-width: calc(100vw - 24px);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.filterBar::-webkit-scrollbar {
+  display: none;
+}
+
+.filterSep {
+  width: 1px;
+  height: 18px;
+  background: #e5e7eb;
+  flex-shrink: 0;
+  margin: 0 2px;
+}
+
+.filterBtn {
+  border: 1px solid transparent;
+  border-radius: 3px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  background: transparent;
+  color: #111827;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  transition: background 0.1s, opacity 0.15s;
+  flex-shrink: 0;
+}
+
+.filterBtn:hover {
+  background: #f3f4f6;
+}
+
+.filterBtnOff {
+  opacity: 0.3;
+}
+
+.filterDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  border: 1.5px solid;
+  display: inline-block;
+  flex-shrink: 0;
+}
+

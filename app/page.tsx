@@ -37,7 +37,7 @@ const MAPTILER_KEY = process.env.NEXT_PUBLIC_MAPTILER_KEY!;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-const PRICE_TEXT_ZOOM = 12;
+const PRICE_TEXT_ZOOM = 13;
 
 function fmtShort(iso: string) {
   try {
@@ -58,6 +58,37 @@ function colorsForPrice(price: number) {
   if (b === 'low') return { bg: '#D1FAE5', border: '#065F46' };
   if (b === 'mid') return { bg: '#FEF3C7', border: '#92400E' };
   return { bg: '#FEE2E2', border: '#991B1B' };
+}
+
+type PriceTier = 'green' | 'yellow' | 'red';
+type VenueType = 'bar' | 'food' | 'hotel' | 'other';
+
+function priceTierOf(price: number): PriceTier {
+  if (price <= 35) return 'green';
+  if (price <= 45) return 'yellow';
+  return 'red';
+}
+
+function classifyVenueType(name: string): VenueType {
+  const n = name.toLowerCase();
+  if (/hotell|hotel\b|hostel|vandrarhem|motel/.test(n)) return 'hotel';
+  if (/\bbar\b|\bpub\b|\bkrog\b|nattklubb|nightclub|\bklubb\b|\blounge\b|bryggeri|brewery|taproom/.test(n)) return 'bar';
+  if (/restaurang|restaurant|bistro|brasserie|matsal|\bgrill\b|pizzeria|sushi|\bcafé\b|\bcafe\b|\bkaffe\b|coffee|konditori|bageri|bakery/.test(n)) return 'food';
+  return 'other';
+}
+
+function applyFilters(
+  allBars: Bar[],
+  pricesMap: Map<number, LatestPrice>,
+  colors: Set<PriceTier>,
+  types: Set<VenueType>,
+): Bar[] {
+  return allBars.filter(b => {
+    if (!types.has(classifyVenueType(b.name ?? ''))) return false;
+    const lp = pricesMap.get(b.id);
+    if (lp && !colors.has(priceTierOf(lp.price_sek))) return false;
+    return true;
+  });
 }
 
 function pickCandidateFromClick(map: MLMap, e: MapMouseEvent): Candidate | null {
@@ -188,6 +219,11 @@ export default function Page() {
   const [history, setHistory] = useState<LatestPrice[]>([]);
   const [priceView, setPriceView] = useState<'confirm' | 'edit'>('confirm');
 
+  const [activeColors, setActiveColors] = useState<Set<PriceTier>>(() => new Set(['green', 'yellow', 'red']));
+  const [activeTypes, setActiveTypes] = useState<Set<VenueType>>(() => new Set(['bar', 'food', 'hotel', 'other']));
+  const activeColorsRef = useRef<Set<PriceTier>>(new Set(['green', 'yellow', 'red']));
+  const activeTypesRef = useRef<Set<VenueType>>(new Set(['bar', 'food', 'hotel', 'other']));
+
   async function loadBarsAndPrices() {
     console.log('loadBarsAndPrices, isDemoMode =', isDemoMode);
     const barsTable = isDemoMode ? 'bars_demo' : 'bars';
@@ -249,7 +285,7 @@ export default function Page() {
 
     setBars(barsRows);
     setLatestPrices(latest);
-    renderMarkers(barsRows, latest);
+    renderMarkers(applyFilters(barsRows, latest, activeColorsRef.current, activeTypesRef.current), latest);
     console.log('pricesData latest map size:', latest.size);
     return barsRows;
   }
@@ -392,6 +428,26 @@ export default function Page() {
         .addTo(map);
       markersRef.current.set(b.id, marker);
     }
+  }
+
+  function reRenderWithFilters(colors: Set<PriceTier>, types: Set<VenueType>) {
+    renderMarkers(applyFilters(barsRef.current, latestPricesRef.current, colors, types), latestPricesRef.current);
+  }
+
+  function toggleColor(tier: PriceTier) {
+    const next = new Set(activeColors);
+    if (next.has(tier)) next.delete(tier); else next.add(tier);
+    activeColorsRef.current = next;
+    setActiveColors(next);
+    reRenderWithFilters(next, activeTypesRef.current);
+  }
+
+  function toggleType(vtype: VenueType) {
+    const next = new Set(activeTypes);
+    if (next.has(vtype)) next.delete(vtype); else next.add(vtype);
+    activeTypesRef.current = next;
+    setActiveTypes(next);
+    reRenderWithFilters(activeColorsRef.current, next);
   }
 
   function focusPoint(lng: number, lat: number) {
@@ -572,7 +628,7 @@ export default function Page() {
       const z = map.getZoom();
       zoomRef.current = z;
       setZoomLevel(z);
-      renderMarkers(barsRef.current, latestPricesRef.current);
+      renderMarkers(applyFilters(barsRef.current, latestPricesRef.current, activeColorsRef.current, activeTypesRef.current), latestPricesRef.current);
     };
 
     const onClick = (e: MapMouseEvent) => {
@@ -691,6 +747,46 @@ export default function Page() {
       {process.env.NODE_ENV === 'development' && (
         <a href="/admin" className={styles.devBtn}>Admin</a>
       )}
+
+      {/* Filter toolbar */}
+      <div className={styles.filterBar}>
+        {/* Price tier toggles */}
+        {([
+          { tier: 'green' as PriceTier, bg: '#D1FAE5', border: '#065F46', label: '≤35' },
+          { tier: 'yellow' as PriceTier, bg: '#FEF3C7', border: '#92400E', label: '36–45' },
+          { tier: 'red' as PriceTier, bg: '#FEE2E2', border: '#991B1B', label: '46+' },
+        ]).map(({ tier, bg, border, label }) => (
+          <button
+            key={tier}
+            className={`${styles.filterBtn} ${!activeColors.has(tier) ? styles.filterBtnOff : ''}`}
+            onClick={() => toggleColor(tier)}
+            title={label}
+          >
+            <span className={styles.filterDot} style={{ background: bg, borderColor: border }} />
+            {label}
+          </button>
+        ))}
+
+        <div className={styles.filterSep} />
+
+        {/* Venue type toggles */}
+        {([
+          { vtype: 'bar' as VenueType, icon: '🍺', label: 'Bar' },
+          { vtype: 'food' as VenueType, icon: '🍴', label: 'Mat' },
+          { vtype: 'hotel' as VenueType, icon: '🛏️', label: 'Hotell' },
+          { vtype: 'other' as VenueType, icon: '🎭', label: 'Övrigt' },
+        ]).map(({ vtype, icon, label }) => (
+          <button
+            key={vtype}
+            className={`${styles.filterBtn} ${!activeTypes.has(vtype) ? styles.filterBtnOff : ''}`}
+            onClick={() => toggleType(vtype)}
+            title={label}
+          >
+            <span style={{ fontSize: 13 }}>{icon}</span>
+            {label}
+          </button>
+        ))}
+      </div>
 
       <div style={{ position: 'absolute', right: 12, bottom: 12, zIndex: 30, display: 'flex', alignItems: 'flex-end', gap: 8 }}>
         <button
