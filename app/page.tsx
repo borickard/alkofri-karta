@@ -836,22 +836,6 @@ export default function Page() {
           aria-label="Om kartan"
           title="Om kartan"
         >?</button>
-        {zoomLevel < PRICE_TEXT_ZOOM && (
-          <div className={styles.legend}>
-            <div className={styles.legendItem}>
-              <span className={styles.legendDot} style={{ background: '#D1FAE5', borderColor: '#065F46' }} />
-              <span className={styles.legendText}>Billigt (≤35)</span>
-            </div>
-            <div className={styles.legendItem}>
-              <span className={styles.legendDot} style={{ background: '#FEF3C7', borderColor: '#92400E' }} />
-              <span className={styles.legendText}>Medel (36-45)</span>
-            </div>
-            <div className={styles.legendItem}>
-              <span className={styles.legendDot} style={{ background: '#FEE2E2', borderColor: '#991B1B' }} />
-              <span className={styles.legendText}>Högt (46+)</span>
-            </div>
-          </div>
-        )}
       </div>
 
       {panelOpen ? (
