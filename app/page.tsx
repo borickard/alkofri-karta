@@ -879,27 +879,13 @@ export default function Page() {
                     <span style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: '#111827', fontWeight: 600 }}>kr</span>
                     <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#9CA3AF', marginLeft: 'auto' }}>{fmtShort(lp!.created_at)}</span>
                   </div>
-                  <div style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#6b7280' }}>
-                    {status === 'confirmed' ? 'Tack för bekräftelsen!' : 'Stämmer det fortfarande?'}
-                  </div>
-                  {status !== 'confirmed' && (
-                    <div className={styles.btnRow}>
-                      <button
-                        className={`${styles.btn} ${styles.btnDark}`}
-                        style={{ flex: 1, justifyContent: 'center' }}
-                        onClick={() => setStatus('confirmed')}
-                      >
-                        ✓ Ja, stämmer
-                      </button>
-                      <button
-                        className={styles.btn}
-                        style={{ flex: 1, justifyContent: 'center' }}
-                        onClick={() => { setPriceView('edit'); setStatus(''); }}
-                      >
-                        Uppdatera pris
-                      </button>
-                    </div>
-                  )}
+                  <button
+                    className={styles.btn}
+                    style={{ alignSelf: 'flex-start' }}
+                    onClick={() => { setPriceView('edit'); setStatus(''); }}
+                  >
+                    Uppdatera pris
+                  </button>
                 </>
               );
             }
