@@ -370,74 +370,59 @@
   transform: translateX(-50%);
   z-index: 20;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
   background: #ffffff;
   border: 1px solid #d1d5db;
   box-shadow: 0 0 0 1px rgba(0,0,0,0.06);
   border-radius: 4px;
-  padding: 3px;
+  padding: 4px;
   max-width: calc(100vw - 140px);
 }
 
-.filterRow {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-
-/* Horizontal separator between rows (mobile) */
-.filterRowSep {
-  height: 1px;
-  background: #e5e7eb;
-  margin: 2px 0;
-}
-
-/* On desktop: collapse to a single row */
-@media (min-width: 640px) {
-  .filterBar {
-    flex-direction: row;
-    align-items: center;
-  }
-
-  /* Become a vertical divider */
-  .filterRowSep {
-    width: 1px;
-    height: 18px;
-    margin: 0 2px;
-  }
-}
-
-.filterSep {
-  width: 1px;
-  height: 18px;
-  background: #e5e7eb;
-  flex-shrink: 0;
-  margin: 0 2px;
-}
-
 .filterBtn {
-  border: 1px solid transparent;
-  border-radius: 3px;
-  padding: 4px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  padding: 5px 10px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
-  background: transparent;
-  color: #111827;
+  background: #f9fafb;
+  color: #374151;
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   white-space: nowrap;
-  transition: background 0.1s, opacity 0.15s;
+  transition: background 0.1s, opacity 0.15s, border-color 0.1s;
   flex-shrink: 0;
+  user-select: none;
 }
 
 .filterBtn:hover {
   background: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+.filterBtn:active {
+  background: #e5e7eb;
+}
+
+.filterBtnOn {
+  background: #111827;
+  color: #ffffff;
+  border-color: #111827;
+}
+
+.filterBtnOn:hover {
+  background: #1f2937;
+  border-color: #1f2937;
 }
 
 .filterBtnOff {
-  opacity: 0.3;
+  background: #f9fafb;
+  color: #9ca3af;
+  border-color: #e5e7eb;
 }
 
 .filterDot {

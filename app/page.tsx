@@ -773,46 +773,21 @@ export default function Page() {
 
       {/* Filter toolbar */}
       <div className={styles.filterBar}>
-        {/* Row 1: price tier toggles */}
-        <div className={styles.filterRow}>
-          {([
-            { tier: 'green' as PriceTier, bg: '#D1FAE5', border: '#065F46', label: '≤35' },
-            { tier: 'yellow' as PriceTier, bg: '#FEF3C7', border: '#92400E', label: '36–45' },
-            { tier: 'red' as PriceTier, bg: '#FEE2E2', border: '#991B1B', label: '46+' },
-          ]).map(({ tier, bg, border, label }) => (
-            <button
-              key={tier}
-              className={`${styles.filterBtn} ${!activeColors.has(tier) ? styles.filterBtnOff : ''}`}
-              onClick={() => toggleColor(tier)}
-              title={label}
-            >
-              <span className={styles.filterDot} style={{ background: bg, borderColor: border }} />
-              {label}
-            </button>
-          ))}
-        </div>
-
-        <div className={styles.filterRowSep} />
-
-        {/* Row 2: venue type toggles */}
-        <div className={styles.filterRow}>
-          {([
-            { vtype: 'bar' as VenueType, icon: '🍺', label: 'Bar' },
-            { vtype: 'food' as VenueType, icon: '🍴', label: 'Mat' },
-            { vtype: 'hotel' as VenueType, icon: '🛏️', label: 'Hotell' },
-            { vtype: 'other' as VenueType, icon: '🎭', label: 'Övrigt' },
-          ]).map(({ vtype, icon, label }) => (
-            <button
-              key={vtype}
-              className={`${styles.filterBtn} ${!activeTypes.has(vtype) ? styles.filterBtnOff : ''}`}
-              onClick={() => toggleType(vtype)}
-              title={label}
-            >
-              <span style={{ fontSize: 13 }}>{icon}</span>
-              {label}
-            </button>
-          ))}
-        </div>
+        {([
+          { tier: 'green' as PriceTier, bg: '#D1FAE5', border: '#065F46', label: '≤35 kr' },
+          { tier: 'yellow' as PriceTier, bg: '#FEF3C7', border: '#92400E', label: '36–45 kr' },
+          { tier: 'red' as PriceTier, bg: '#FEE2E2', border: '#991B1B', label: '46+ kr' },
+        ]).map(({ tier, bg, border, label }) => (
+          <button
+            key={tier}
+            className={`${styles.filterBtn} ${activeColors.has(tier) ? styles.filterBtnOn : styles.filterBtnOff}`}
+            onClick={() => toggleColor(tier)}
+            title={label}
+          >
+            <span className={styles.filterDot} style={{ background: bg, borderColor: border }} />
+            {label}
+          </button>
+        ))}
       </div>
 
       <div style={{ position: 'absolute', right: 12, bottom: 12, zIndex: 30, display: 'flex', alignItems: 'flex-end', gap: 8 }}>
