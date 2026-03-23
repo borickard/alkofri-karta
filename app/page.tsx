@@ -478,11 +478,19 @@ export default function Page() {
         // Backfill opening_hours via Overpass API for bars that don't have it yet
         console.log('[OH] bar clicked, opening_hours =', b.opening_hours, 'bar id =', b.id);
         if (!b.opening_hours) {
-          const q = `[out:json][timeout:10];(node["opening_hours"](around:50,${b.lat},${b.lng});way["opening_hours"](around:50,${b.lat},${b.lng}););out body qt 1;`;
+          const q = `[out:json][timeout:10];(node["opening_hours"](around:50,${b.lat},${b.lng});way["opening_hours"](around:50,${b.lat},${b.lng}););out body 1;`;
           console.log('[OH] querying Overpass for', b.name, b.lat, b.lng);
-          fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(q)}`)
-            .then(r => r.json())
-            .then((data: { elements?: { tags?: { opening_hours?: string } }[] }) => {
+          fetch('https://overpass-api.de/api/interpreter', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `data=${encodeURIComponent(q)}`,
+          })
+            .then(r => {
+              if (!r.ok) { console.log('[OH] Overpass HTTP error:', r.status); return null; }
+              return r.json();
+            })
+            .then((data: { elements?: { tags?: { opening_hours?: string } }[] } | null) => {
+              if (!data) return;
               console.log('[OH] Overpass response elements:', data?.elements?.length, data?.elements?.[0]?.tags);
               const oh = data?.elements?.[0]?.tags?.opening_hours;
               if (!oh) { console.log('[OH] no opening_hours found in Overpass result'); return; }
