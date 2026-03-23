@@ -49,25 +49,29 @@ function fmtShort(iso: string) {
   }
 }
 
-function priceBucket(price: number) {
-  if (price <= 35) return 'low';
-  if (price <= 45) return 'mid';
-  return 'high';
+type Thresholds = { low: number; high: number };
+
+function calcThresholds(prices: number[]): Thresholds {
+  if (prices.length < 2) return { low: 35, high: 45 };
+  const s = [...prices].sort((a, b) => a - b);
+  return {
+    low: s[Math.floor((s.length - 1) / 3)],
+    high: s[Math.floor(2 * (s.length - 1) / 3)],
+  };
 }
 
-function colorsForPrice(price: number) {
-  const b = priceBucket(price);
-  if (b === 'low') return { bg: '#D1FAE5', border: '#065F46' };
-  if (b === 'mid') return { bg: '#FEF3C7', border: '#92400E' };
-  return { bg: '#FEE2E2', border: '#991B1B' };
+function priceTierColor(price: number, t: Thresholds) {
+  if (price <= t.low) return { bg: '#D1FAE5', border: '#6EE7B7' };
+  if (price <= t.high) return { bg: '#FEF3C7', border: '#FCD34D' };
+  return { bg: '#FEE2E2', border: '#FCA5A5' };
 }
 
 type PriceTier = 'green' | 'yellow' | 'red';
 type VenueType = 'bar' | 'food' | 'hotel' | 'other';
 
-function priceTierOf(price: number): PriceTier {
-  if (price <= 35) return 'green';
-  if (price <= 45) return 'yellow';
+function priceTierOf(price: number, t: Thresholds): PriceTier {
+  if (price <= t.low) return 'green';
+  if (price <= t.high) return 'yellow';
   return 'red';
 }
 
@@ -101,11 +105,12 @@ function applyFilters(
   pricesMap: Map<number, LatestPrice>,
   colors: Set<PriceTier>,
   types: Set<VenueType>,
+  t: Thresholds,
 ): Bar[] {
   return allBars.filter(b => {
     if (!types.has(classifyVenueType(b))) return false;
     const lp = pricesMap.get(b.id);
-    if (lp && !colors.has(priceTierOf(lp.price_sek))) return false;
+    if (lp && !colors.has(priceTierOf(lp.price_sek, t))) return false;
     return true;
   });
 }
@@ -249,6 +254,8 @@ export default function Page() {
   const [activeTypes, setActiveTypes] = useState<Set<VenueType>>(() => new Set(['bar', 'food', 'hotel', 'other']));
   const activeColorsRef = useRef<Set<PriceTier>>(new Set(['green', 'yellow', 'red']));
   const activeTypesRef = useRef<Set<VenueType>>(new Set(['bar', 'food', 'hotel', 'other']));
+  const [thresholds, setThresholds] = useState<Thresholds>({ low: 35, high: 45 });
+  const thresholdsRef = useRef<Thresholds>({ low: 35, high: 45 });
 
   async function loadBarsAndPrices() {
     console.log('loadBarsAndPrices, isDemoMode =', isDemoMode);
@@ -313,7 +320,7 @@ export default function Page() {
 
     setBars(barsRows);
     setLatestPrices(latest);
-    renderMarkers(applyFilters(barsRows, latest, activeColorsRef.current, activeTypesRef.current), latest);
+    refreshMap(barsRows, latest);
     console.log('pricesData latest map size:', latest.size);
     return barsRows;
   }
@@ -344,7 +351,7 @@ export default function Page() {
     markersRef.current.clear();
   }
 
-  function renderMarkers(allBars: Bar[], pricesMap: Map<number, LatestPrice>) {
+  function renderMarkers(allBars: Bar[], pricesMap: Map<number, LatestPrice>, t: Thresholds) {
     const map = mapRef.current;
     if (!map) return;
 
@@ -443,7 +450,7 @@ export default function Page() {
         markerEl = makeMarkerEl('✕', '#f9fafb', '#9ca3af', small);
       } else {
         const price = lp!.price_sek;
-        const c = colorsForPrice(price);
+        const c = priceTierColor(price, t);
         markerEl = makeMarkerEl(small ? `${price}` : `${price} kr`, c.bg, c.border, small);
       }
 
@@ -458,8 +465,26 @@ export default function Page() {
     }
   }
 
-  function reRenderWithFilters(colors: Set<PriceTier>, types: Set<VenueType>) {
-    renderMarkers(applyFilters(barsRef.current, latestPricesRef.current, colors, types), latestPricesRef.current);
+  function refreshMap(
+    bars = barsRef.current,
+    prices = latestPricesRef.current,
+    colors = activeColorsRef.current,
+    types = activeTypesRef.current,
+  ) {
+    const map = mapRef.current;
+    if (!map) return;
+    const bounds = map.getBounds();
+    const visiblePrices: number[] = [];
+    for (const b of bars) {
+      if (bounds.contains([b.lng, b.lat])) {
+        const lp = prices.get(b.id);
+        if (lp) visiblePrices.push(lp.price_sek);
+      }
+    }
+    const t = calcThresholds(visiblePrices);
+    thresholdsRef.current = t;
+    setThresholds(t);
+    renderMarkers(applyFilters(bars, prices, colors, types, t), prices, t);
   }
 
   function toggleColor(tier: PriceTier) {
@@ -467,7 +492,7 @@ export default function Page() {
     if (next.has(tier)) next.delete(tier); else next.add(tier);
     activeColorsRef.current = next;
     setActiveColors(next);
-    reRenderWithFilters(next, activeTypesRef.current);
+    refreshMap(barsRef.current, latestPricesRef.current, next, activeTypesRef.current);
     window.history.replaceState(null, '', buildBarUrl(selectedBarId, next));
   }
 
@@ -476,7 +501,7 @@ export default function Page() {
     if (next.has(vtype)) next.delete(vtype); else next.add(vtype);
     activeTypesRef.current = next;
     setActiveTypes(next);
-    reRenderWithFilters(activeColorsRef.current, next);
+    refreshMap(barsRef.current, latestPricesRef.current, activeColorsRef.current, next);
   }
 
   function focusPoint(lng: number, lat: number) {
@@ -659,8 +684,10 @@ export default function Page() {
       const z = map.getZoom();
       zoomRef.current = z;
       setZoomLevel(z);
-      renderMarkers(applyFilters(barsRef.current, latestPricesRef.current, activeColorsRef.current, activeTypesRef.current), latestPricesRef.current);
+      refreshMap();
     };
+
+    const onMoveEnd = () => { refreshMap(); };
 
     const onClick = (e: MapMouseEvent) => {
       const cand = pickCandidateFromClick(map, e);
@@ -677,6 +704,7 @@ export default function Page() {
 
     map.on('zoom', onZoom);
     map.on('load', onZoom);
+    map.on('moveend', onMoveEnd);
     map.on('click', onClick);
 
     // Some external MapTiler styles reference sprite images that may be missing.
@@ -722,6 +750,7 @@ export default function Page() {
     return () => {
       map.off('zoom', onZoom);
       map.off('load', onZoom);
+      map.off('moveend', onMoveEnd);
       map.off('click', onClick);
       map.remove();
       mapRef.current = null;
@@ -783,17 +812,18 @@ export default function Page() {
       {/* Filter toolbar */}
       <div className={styles.filterBar}>
         {([
-          { tier: 'green' as PriceTier, bg: '#D1FAE5', border: '#6ee7b7', label: '≤35 kr' },
-          { tier: 'yellow' as PriceTier, bg: '#FEF3C7', border: '#fcd34d', label: '36–45 kr' },
-          { tier: 'red' as PriceTier, bg: '#FEE2E2', border: '#fca5a5', label: '46+ kr' },
-        ]).map(({ tier, bg, border, label }) => (
+          { tier: 'green' as PriceTier, bg: '#D1FAE5', border: '#6EE7B7', label: 'Billigt', range: `≤${thresholds.low} kr` },
+          { tier: 'yellow' as PriceTier, bg: '#FEF3C7', border: '#FCD34D', label: 'Medel', range: `${thresholds.low + 1}–${thresholds.high} kr` },
+          { tier: 'red' as PriceTier, bg: '#FEE2E2', border: '#FCA5A5', label: 'Dyrt', range: `>${thresholds.high} kr` },
+        ]).map(({ tier, bg, border, label, range }) => (
           <button
             key={tier}
             className={`${styles.filterBtn} ${activeColors.has(tier) ? styles.filterBtnOn : styles.filterBtnOff}`}
             style={activeColors.has(tier) ? { background: bg, borderColor: border, color: '#111827' } : undefined}
             onClick={() => toggleColor(tier)}
           >
-            {label}
+            <span className={styles.filterBtnLabel}>{label}</span>
+            <span className={styles.filterBtnRange}>{range}</span>
           </button>
         ))}
       </div>

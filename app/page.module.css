@@ -385,14 +385,13 @@
   border: 1px solid #d1d5db;
   border-radius: 4px;
   padding: 5px 10px;
-  font-size: 12px;
-  font-weight: 700;
   cursor: pointer;
   background: #f9fafb;
   color: #374151;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 2px;
   white-space: nowrap;
   transition: background 0.1s, opacity 0.15s, border-color 0.1s;
   flex-shrink: 0;
@@ -420,5 +419,18 @@
   background: #f3f4f6;
   color: #9ca3af;
   border-color: #e5e7eb;
+}
+
+.filterBtnLabel {
+  font-weight: 700;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.filterBtnRange {
+  font-weight: 400;
+  font-size: 10px;
+  line-height: 1;
+  opacity: 0.75;
 }
 
