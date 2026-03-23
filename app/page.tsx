@@ -476,18 +476,23 @@ export default function Page() {
         focusPoint(b.lng, b.lat);
 
         // Backfill opening_hours via Overpass API for bars that don't have it yet
+        console.log('[OH] bar clicked, opening_hours =', b.opening_hours, 'bar id =', b.id);
         if (!b.opening_hours) {
           const q = `[out:json][timeout:10];(node["opening_hours"](around:50,${b.lat},${b.lng});way["opening_hours"](around:50,${b.lat},${b.lng}););out body qt 1;`;
+          console.log('[OH] querying Overpass for', b.name, b.lat, b.lng);
           fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(q)}`)
             .then(r => r.json())
             .then((data: { elements?: { tags?: { opening_hours?: string } }[] }) => {
+              console.log('[OH] Overpass response elements:', data?.elements?.length, data?.elements?.[0]?.tags);
               const oh = data?.elements?.[0]?.tags?.opening_hours;
-              if (!oh) return;
+              if (!oh) { console.log('[OH] no opening_hours found in Overpass result'); return; }
+              console.log('[OH] found opening_hours:', oh, '→ isOpenNow:', isOpenNow(oh));
               fetch('/api/patch-bar', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ bar_id: b.id, opening_hours: oh, demo: isDemoMode }),
               }).then(r => r.json()).then(patchData => {
+                console.log('[OH] patch-bar result:', patchData);
                 if (patchData.ok) {
                   setBars(prev => prev.map(bar =>
                     bar.id === b.id ? { ...bar, opening_hours: oh } : bar
@@ -495,7 +500,9 @@ export default function Page() {
                 }
               }).catch(console.error);
             })
-            .catch(console.error);
+            .catch(e => console.error('[OH] Overpass fetch failed:', e));
+        } else {
+          console.log('[OH] already has opening_hours:', b.opening_hours, '→ isOpenNow:', isOpenNow(b.opening_hours));
         }
       });
     }
@@ -957,11 +964,15 @@ export default function Page() {
                 {(() => {
                   const oh = selectedBar?.opening_hours ?? candidate?.opening_hours ?? null;
                   const status = isOpenNow(oh);
-                  if (status === null) return null;
                   return (
-                    <div style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600, color: status ? '#059669' : '#DC2626', marginTop: 2 }}>
-                      {status ? '● Öppet nu' : '● Stängt'}
-                    </div>
+                    <>
+                      {oh && <div style={{ fontFamily: 'var(--font-body)', fontSize: 10, color: '#999', marginTop: 1 }}>[DEBUG: {oh}]</div>}
+                      {status !== null && (
+                        <div style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600, color: status ? '#059669' : '#DC2626', marginTop: 2 }}>
+                          {status ? '● Öppet nu' : '● Stängt'}
+                        </div>
+                      )}
+                    </>
                   );
                 })()}
               </div>
