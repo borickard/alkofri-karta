@@ -37,7 +37,7 @@ const MAPTILER_KEY = process.env.NEXT_PUBLIC_MAPTILER_KEY!;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-const PRICE_TEXT_ZOOM = 15;
+const PRICE_TEXT_ZOOM = 12;
 
 function fmtShort(iso: string) {
   try {
