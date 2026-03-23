@@ -16,6 +16,7 @@ type Bar = {
   source_id: string | null;
   no_na_beer: boolean | null;
   no_na_reported_at: string | null;
+  venue_type: string | null;
 };
 
 type LatestPrice = {
@@ -29,6 +30,7 @@ type Candidate = {
   lat: number;
   lng: number;
   source_id: string;
+  venue_type: VenueType;
 };
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -69,11 +71,28 @@ function priceTierOf(price: number): PriceTier {
   return 'red';
 }
 
-function classifyVenueType(name: string): VenueType {
+function classifyByName(name: string): VenueType {
   const n = name.toLowerCase();
   if (/hotell|hotel\b|hostel|vandrarhem|motel/.test(n)) return 'hotel';
   if (/\bbar\b|\bpub\b|\bkrog\b|nattklubb|nightclub|\bklubb\b|\blounge\b|bryggeri|brewery|taproom/.test(n)) return 'bar';
   if (/restaurang|restaurant|bistro|brasserie|matsal|\bgrill\b|pizzeria|sushi|\bcafé\b|\bcafe\b|\bkaffe\b|coffee|konditori|bageri|bakery/.test(n)) return 'food';
+  return 'other';
+}
+
+function classifyVenueType(bar: Bar): VenueType {
+  if (bar.venue_type) return bar.venue_type as VenueType;
+  return classifyByName(bar.name ?? '');
+}
+
+function deriveVenueType(
+  amenity: string, tourism: string, leisure: string,
+  subclass: string, entertainment: string,
+): VenueType {
+  if (['hotel', 'hostel', 'motel', 'guest_house'].some(v => tourism === v || subclass === v)) return 'hotel';
+  if (['restaurant', 'cafe', 'fast_food'].some(v => amenity === v || subclass === v)) return 'food';
+  if (['bar', 'pub', 'nightclub'].some(v => amenity === v || subclass === v) ||
+      ['music_venue', 'dance'].some(v => leisure === v || subclass === v) ||
+      ['nightclub', 'music_venue', 'concert_hall', 'event_venue'].some(v => entertainment === v)) return 'bar';
   return 'other';
 }
 
@@ -84,7 +103,7 @@ function applyFilters(
   types: Set<VenueType>,
 ): Bar[] {
   return allBars.filter(b => {
-    if (!types.has(classifyVenueType(b.name ?? ''))) return false;
+    if (!types.has(classifyVenueType(b))) return false;
     const lp = pricesMap.get(b.id);
     if (lp && !colors.has(priceTierOf(lp.price_sek))) return false;
     return true;
@@ -181,6 +200,7 @@ function pickCandidateFromClick(map: MLMap, e: MapMouseEvent): Candidate | null 
       lat: e.lngLat.lat,
       lng: e.lngLat.lng,
       source_id: `mt:${fid}`,
+      venue_type: deriveVenueType(amenity, tourism, leisure, subclass, entertainment),
     };
   }
 
@@ -232,7 +252,7 @@ export default function Page() {
 
     const { data: barsData, error: barsErr } = await supabase
       .from(barsTable)
-      .select('id,name,lat,lng,source,source_id,no_na_beer,no_na_reported_at')
+      .select('id,name,lat,lng,source,source_id,no_na_beer,no_na_reported_at,venue_type')
       .order('id', { ascending: true });
 
     console.log('barsData:', barsData?.length, barsErr);
@@ -248,6 +268,7 @@ export default function Page() {
         source_id?: unknown;
         no_na_beer?: unknown;
         no_na_reported_at?: unknown;
+        venue_type?: unknown;
       };
 
       return {
@@ -259,6 +280,7 @@ export default function Page() {
         source_id: (rr.source_id as string | undefined) ?? null,
         no_na_beer: (rr.no_na_beer as boolean | null | undefined) ?? false,
         no_na_reported_at: (rr.no_na_reported_at as string | null | undefined) ?? null,
+        venue_type: (rr.venue_type as string | null | undefined) ?? null,
       };
     });
 
