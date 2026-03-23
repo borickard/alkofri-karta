@@ -762,10 +762,11 @@ export default function Page() {
     <div className={styles.app}>
       <div className={styles.mapWrap}>
         <div className={styles.topLeftBrand}>
-          <a href="https://www.iq.se" target="_blank" rel="noopener noreferrer">
+          <a href="https://www.iq.se" target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center' }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/iq_logotype.svg" alt="IQ" className={styles.iqLogo} />
           </a>
+          <span className={styles.siteTitle}>Vad kostar nollan?</span>
         </div>
         <div ref={mapContainerRef} className={styles.map} />
       </div>

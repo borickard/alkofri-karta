@@ -327,13 +327,24 @@
   top: 14px;
   left: 14px;
   z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .iqLogo {
   height: 34px;
-  /* mobil */
   width: auto;
   display: block;
+}
+
+.siteTitle {
+  font-family: var(--font-heading);
+  font-size: 18px;
+  font-weight: 400;
+  color: #111827;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .devBtn {
@@ -355,30 +366,43 @@
   display: flex;
   align-items: center;
 }
-@media (min-width: 768px) {
+@media (min-width: 640px) {
   .iqLogo {
     height: 56px;
-    /* desktop */
+  }
+
+  .siteTitle {
+    font-size: 28px;
   }
 }
 
-/* Filter toolbar */
+/* Filter toolbar — mobile: below brand, left-aligned, vertical */
 .filterBar {
   position: absolute;
-  top: 12px;
-  left: 50%;
-  transform: translateX(-50%);
+  top: 62px; /* 14px top + 34px logo + 14px gap */
+  left: 14px;
+  transform: none;
   z-index: 20;
   display: flex;
-  flex-direction: row;
-  align-items: center;
+  flex-direction: column;
   gap: 4px;
   background: #ffffff;
   border: 1px solid #d1d5db;
   box-shadow: 0 0 0 1px rgba(0,0,0,0.06);
   border-radius: 4px;
   padding: 4px;
-  max-width: calc(100vw - 140px);
+}
+
+/* Desktop: centered at top, single row */
+@media (min-width: 640px) {
+  .filterBar {
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    flex-direction: row;
+    align-items: center;
+    max-width: calc(100vw - 500px);
+  }
 }
 
 .filterBtn {
@@ -396,6 +420,13 @@
   transition: background 0.1s, opacity 0.15s, border-color 0.1s;
   flex-shrink: 0;
   user-select: none;
+  width: 100%; /* stretch in vertical (mobile) layout */
+}
+
+@media (min-width: 640px) {
+  .filterBtn {
+    width: auto;
+  }
 }
 
 .filterBtn:hover {
