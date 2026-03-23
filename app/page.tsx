@@ -17,6 +17,7 @@ type Bar = {
   no_na_beer: boolean | null;
   no_na_reported_at: string | null;
   venue_type: string | null;
+  opening_hours: string | null;
 };
 
 type LatestPrice = {
@@ -31,6 +32,7 @@ type Candidate = {
   lng: number;
   source_id: string;
   venue_type: VenueType;
+  opening_hours: string | null;
 };
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -200,16 +202,72 @@ function pickCandidateFromClick(map: MLMap, e: MapMouseEvent): Candidate | null 
         ? String(f.id)
         : `${f?.layer?.id || 'layer'}:${String(name).trim()}`;
 
+    const opening_hours_raw = props['opening_hours'] ?? props['opening_hours:signed'] ?? null;
+    const opening_hours = opening_hours_raw ? String(opening_hours_raw).trim() : null;
+
     return {
       name: String(name).trim(),
       lat: e.lngLat.lat,
       lng: e.lngLat.lng,
       source_id: `mt:${fid}`,
       venue_type: deriveVenueType(amenity, tourism, leisure, subclass, entertainment),
+      opening_hours,
     };
   }
 
   return null;
+}
+
+function ohToMinutes(t: string): number {
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + (m || 0);
+}
+
+function ohDayActive(days: string, todayJS: number): boolean {
+  // todayJS: 0=Sun, 1=Mon, ..., 6=Sat
+  const map: Record<string, number> = { mo: 1, tu: 2, we: 3, th: 4, fr: 5, sa: 6, su: 0 };
+  for (const part of days.split(',')) {
+    const p = part.trim().toLowerCase();
+    const range = p.match(/^([a-z]{2})-([a-z]{2})$/);
+    if (range) {
+      const a = map[range[1]] ?? -1;
+      const b = map[range[2]] ?? -1;
+      if (a === -1 || b === -1) continue;
+      if (a <= b) { if (todayJS >= a && todayJS <= b) return true; }
+      else { if (todayJS >= a || todayJS <= b) return true; }
+    } else if (map[p] !== undefined) {
+      if (map[p] === todayJS) return true;
+    }
+  }
+  return false;
+}
+
+function isOpenNow(oh: string | null | undefined): boolean | null {
+  if (!oh) return null;
+  const s = oh.trim();
+  if (s === '24/7') return true;
+  const now = new Date();
+  const todayJS = now.getDay();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  let matched = false;
+  let open = false;
+  for (const rule of s.split(';').map(r => r.trim()).filter(Boolean)) {
+    const m = rule.match(/^([A-Za-z,\-]+)\s+(.+)$/);
+    if (!m) continue;
+    if (!ohDayActive(m[1], todayJS)) continue;
+    matched = true;
+    for (const tr of m[2].split(',')) {
+      const tm = tr.trim().match(/^(\d{1,2}:\d{2})-(\d{1,2}:\d{2})$/);
+      if (!tm) continue;
+      const start = ohToMinutes(tm[1]);
+      const end = ohToMinutes(tm[2]);
+      if (end <= start ? (nowMin >= start || nowMin < end) : (nowMin >= start && nowMin < end)) {
+        open = true;
+        break;
+      }
+    }
+  }
+  return matched ? open : null;
 }
 
 export default function Page() {
@@ -266,7 +324,7 @@ export default function Page() {
 
     const { data: barsData, error: barsErr } = await supabase
       .from(barsTable)
-      .select('id,name,lat,lng,source,source_id,no_na_beer,no_na_reported_at,venue_type')
+      .select('id,name,lat,lng,source,source_id,no_na_beer,no_na_reported_at,venue_type,opening_hours')
       .order('id', { ascending: true });
 
     console.log('barsData:', barsData?.length, barsErr);
@@ -283,6 +341,7 @@ export default function Page() {
         no_na_beer?: unknown;
         no_na_reported_at?: unknown;
         venue_type?: unknown;
+        opening_hours?: unknown;
       };
 
       return {
@@ -295,6 +354,7 @@ export default function Page() {
         no_na_beer: (rr.no_na_beer as boolean | null | undefined) ?? false,
         no_na_reported_at: (rr.no_na_reported_at as string | null | undefined) ?? null,
         venue_type: (rr.venue_type as string | null | undefined) ?? null,
+        opening_hours: (rr.opening_hours as string | null | undefined) ?? null,
       };
     });
 
@@ -867,8 +927,20 @@ export default function Page() {
                 color: '#111827',
                 flex: 1,
                 minWidth: 0,
+                flexDirection: 'column' as const,
+                display: 'flex',
               }}>
                 {selectedBar ? selectedBar.name : candidate?.name}
+                {(() => {
+                  const oh = selectedBar?.opening_hours ?? candidate?.opening_hours ?? null;
+                  const status = isOpenNow(oh);
+                  if (status === null) return null;
+                  return (
+                    <div style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600, color: status ? '#059669' : '#DC2626', marginTop: 2 }}>
+                      {status ? '● Öppet nu' : '● Stängt'}
+                    </div>
+                  );
+                })()}
               </div>
               <button
                 onClick={closePanel}
@@ -965,7 +1037,7 @@ export default function Page() {
                           style={{ flex: 1 }}
                           onClick={() => (selectedBar ? reportNoNaSelected() : reportNoNaCandidate())}
                         >
-                          ✕ Saknas här
+                          ✕ Alkoholfri öl saknas
                         </button>
                       )}
                     </div>
@@ -1020,8 +1092,8 @@ export default function Page() {
               );
             })()}
 
-            {/* No NA beer button — only in edit/no-price view, not in confirm view */}
-            {priceView !== 'confirm' && !selectedBar?.no_na_beer && (
+            {/* No NA beer button — only when bar has no price */}
+            {!(selectedBar ? !!latestPrices.get(selectedBar.id) : false) && !selectedBar?.no_na_beer && (
               <button
                 className={styles.btn}
                 onClick={() => (selectedBar ? reportNoNaSelected() : reportNoNaCandidate())}
@@ -1044,8 +1116,6 @@ export default function Page() {
                 maxWidth: 480,
                 padding: '40px 36px 32px',
                 borderRadius: 16,
-                border: '2px solid #111827',
-                boxShadow: '4px 4px 0 #111827',
               }}
             >
               <div style={{

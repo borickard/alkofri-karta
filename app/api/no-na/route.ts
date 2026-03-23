@@ -62,10 +62,13 @@ export async function POST(req: Request) {
         source: 'maptiler';
         source_id: string;
         venue_type?: string | null;
+        opening_hours?: string | null;
       };
 
       const venue_type_raw = body.venue_type ?? null;
       const venue_type = venue_type_raw ? String(venue_type_raw) : null;
+      const opening_hours_raw = body.opening_hours ?? null;
+      const opening_hours = opening_hours_raw ? String(opening_hours_raw).trim() : null;
 
       const payload: BarUpsertPayload = {
         name,
@@ -74,6 +77,7 @@ export async function POST(req: Request) {
         source: 'maptiler',
         source_id: source_id ?? `fallback-${name}-${lat.toFixed(6)}-${lng.toFixed(6)}`,
         venue_type,
+        opening_hours,
       };
 
       const { data: upserted, error: upsertErr } = await supabase
