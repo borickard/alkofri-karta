@@ -365,26 +365,31 @@
 /* Filter toolbar */
 .filterBar {
   position: absolute;
-  bottom: 40px;
+  top: 12px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 20;
   display: flex;
-  align-items: center;
-  gap: 2px;
+  flex-direction: column;
+  gap: 0;
   background: #ffffff;
   border: 1px solid #d1d5db;
   box-shadow: 0 0 0 1px rgba(0,0,0,0.06);
   border-radius: 4px;
   padding: 3px;
-  max-width: calc(100vw - 24px);
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
+  max-width: calc(100vw - 140px); /* leave room for logo on left */
 }
 
-.filterBar::-webkit-scrollbar {
-  display: none;
+.filterRow {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.filterRowSep {
+  height: 1px;
+  background: #e5e7eb;
+  margin: 2px 0;
 }
 
 .filterSep {
