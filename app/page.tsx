@@ -235,6 +235,7 @@ export default function Page() {
   useEffect(() => { latestPricesRef.current = latestPrices; }, [latestPrices]);
 
   const [welcomeOpen, setWelcomeOpen] = useState(!searchParams.has('bar'));
+  const [omOpen, setOmOpen] = useState(false);
   const [selectedBarId, setSelectedBarId] = useState<number | null>(null);
   const selectedBar = useMemo(() => (selectedBarId ? bars.find(b => b.id === selectedBarId) ?? null : null), [bars, selectedBarId]);
   const [candidate, setCandidate] = useState<Candidate | null>(null);
@@ -765,138 +766,221 @@ export default function Page() {
 
   return (
     <div className={styles.app}>
-      <div className={styles.mapWrap}>
-        <div className={styles.topLeftBrand}>
+      <header className={styles.header}>
+        <div className={styles.headerBrand}>
           <a href="https://www.iq.se" target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center' }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/iq_logotype.svg" alt="IQ" className={styles.iqLogo} />
           </a>
           <span className={styles.siteTitle}>Vad kostar nollan?</span>
         </div>
-        <div ref={mapContainerRef} className={styles.map} />
-      </div>
-
-      {isDemoMode && (
-        <div style={{
-          position: 'absolute',
-          bottom: 64,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          zIndex: 30,
-          background: '#ffffff',
-          border: '1px solid #d1d5db',
-          boxShadow: '0 0 0 1px rgba(0,0,0,0.06)',
-          borderRadius: 4,
-          padding: '0 10px 0 14px',
-          fontWeight: 600,
-          fontSize: 13,
-          color: '#374151',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          height: 36,
-          whiteSpace: 'nowrap',
-        }}>
-          Demo-läge
-          <button
-            onClick={() => { window.location.href = '/'; }}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: '#9ca3af', padding: '0 2px', lineHeight: 1, display: 'flex', alignItems: 'center' }}
-            aria-label="Avsluta demo-läge"
-            title="Avsluta demo-läge"
-          >✕</button>
-        </div>
-      )}
-
-      <button className={styles.locateBtn} onClick={locateMe} aria-label="Hitta min plats" title="Hitta min plats">
-        ⌖
-      </button>
-
-      {process.env.NODE_ENV === 'development' && (
-        <a href="/admin" className={styles.devBtn}>Admin</a>
-      )}
-
-      {/* Filter toolbar */}
-      <div className={styles.filterBar}>
-        {([
-          { tier: 'green' as PriceTier, bg: '#D1FAE5', border: '#6EE7B7', label: 'Billigt', range: `≤${thresholds.low} kr` },
-          { tier: 'yellow' as PriceTier, bg: '#FEF3C7', border: '#FCD34D', label: 'Medel', range: `${thresholds.low + 1}–${thresholds.high} kr` },
-          { tier: 'red' as PriceTier, bg: '#FEE2E2', border: '#FCA5A5', label: 'Dyrt', range: `>${thresholds.high} kr` },
-        ]).map(({ tier, bg, border, label, range }) => (
-          <button
-            key={tier}
-            className={`${styles.filterBtn} ${activeColors.has(tier) ? styles.filterBtnOn : styles.filterBtnOff}`}
-            style={activeColors.has(tier) ? { background: bg, borderColor: border, color: '#111827' } : undefined}
-            onClick={() => toggleColor(tier)}
-          >
-            <span className={styles.filterBtnLabel}>{label}</span>
-            <span className={styles.filterBtnRange}>{range}</span>
-          </button>
-        ))}
-      </div>
-
-      <div style={{ position: 'absolute', right: 12, bottom: 12, zIndex: 30, display: 'flex', alignItems: 'flex-end', gap: 8 }}>
         <button
-          className={styles.mapBtn}
-          onClick={() => setWelcomeOpen(true)}
-          aria-label="Om kartan"
-          title="Om kartan"
-        >?</button>
-      </div>
+          className={styles.hamburgerBtn}
+          onClick={() => setOmOpen(true)}
+          aria-label="Om projektet"
+          title="Om projektet"
+        >
+          <span className={styles.hamburgerLine} />
+          <span className={styles.hamburgerLine} />
+          <span className={styles.hamburgerLine} />
+        </button>
+      </header>
 
-      {panelOpen ? (
-        <div ref={panelRef} className={styles.panel}>
-          {/* Title row */}
-          <div className={styles.panelTitleRow}>
-            <div style={{
-              fontFamily: 'var(--font-heading)',
-              fontSize: 22,
-              lineHeight: 1.2,
-              color: '#111827',
-              flex: 1,
-              minWidth: 0,
-            }}>
-              {selectedBar ? selectedBar.name : candidate?.name}
-            </div>
+      <div className={styles.mapWrap}>
+        <div ref={mapContainerRef} className={styles.map} />
+
+        {isDemoMode && (
+          <div style={{
+            position: 'absolute',
+            bottom: 64,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 30,
+            background: '#ffffff',
+            border: '1px solid #d1d5db',
+            boxShadow: '0 0 0 1px rgba(0,0,0,0.06)',
+            borderRadius: 4,
+            padding: '0 10px 0 14px',
+            fontWeight: 600,
+            fontSize: 13,
+            color: '#374151',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            height: 36,
+            whiteSpace: 'nowrap',
+          }}>
+            Demo-läge
             <button
-              onClick={closePanel}
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                fontSize: 20,
-                lineHeight: 1,
-                color: '#6B7280',
-                padding: '0 4px',
-                flexShrink: 0,
-              }}
-              aria-label="Stäng"
+              onClick={() => { window.location.href = '/'; }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: '#9ca3af', padding: '0 2px', lineHeight: 1, display: 'flex', alignItems: 'center' }}
+              aria-label="Avsluta demo-läge"
+              title="Avsluta demo-läge"
             >✕</button>
           </div>
+        )}
 
-          {status ? <div className={styles.status}>{status}</div> : null}
+        <button className={styles.locateBtn} onClick={locateMe} aria-label="Hitta min plats" title="Hitta min plats">
+          ⌖
+        </button>
 
-          {/* Price section */}
-          {(() => {
-            const lp = selectedBar ? latestPrices.get(selectedBar.id) : null;
-            const hasPrice = !!lp;
-            const isNoNa = selectedBar?.no_na_beer;
+        {process.env.NODE_ENV === 'development' && (
+          <a href="/admin" className={styles.devBtn}>Admin</a>
+        )}
 
-            if (isNoNa) {
-              // Already marked as no NA beer — show state + allow price correction
+        {/* Filter toolbar */}
+        <div className={styles.filterBar}>
+          {([
+            { tier: 'green' as PriceTier, bg: '#D1FAE5', border: '#6EE7B7', label: 'Billigt', range: `≤${thresholds.low} kr` },
+            { tier: 'yellow' as PriceTier, bg: '#FEF3C7', border: '#FCD34D', label: 'Medel', range: `${thresholds.low + 1}–${thresholds.high} kr` },
+            { tier: 'red' as PriceTier, bg: '#FEE2E2', border: '#FCA5A5', label: 'Dyrt', range: `>${thresholds.high} kr` },
+          ]).map(({ tier, bg, border, label, range }) => (
+            <button
+              key={tier}
+              className={`${styles.filterBtn} ${activeColors.has(tier) ? styles.filterBtnOn : styles.filterBtnOff}`}
+              style={activeColors.has(tier) ? { background: bg, borderColor: border, color: '#111827' } : undefined}
+              onClick={() => toggleColor(tier)}
+            >
+              <span className={styles.filterBtnLabel}>{label}</span>
+              <span className={styles.filterBtnRange}>{range}</span>
+            </button>
+          ))}
+        </div>
+
+        <div style={{ position: 'absolute', right: 12, bottom: 12, zIndex: 30 }}>
+          <button
+            className={styles.mapBtn}
+            onClick={() => setWelcomeOpen(true)}
+            aria-label="Om kartan"
+            title="Om kartan"
+          >?</button>
+        </div>
+
+        {panelOpen ? (
+          <div ref={panelRef} className={styles.panel}>
+            {/* Title row */}
+            <div className={styles.panelTitleRow}>
+              <div style={{
+                fontFamily: 'var(--font-heading)',
+                fontSize: 22,
+                lineHeight: 1.2,
+                color: '#111827',
+                flex: 1,
+                minWidth: 0,
+              }}>
+                {selectedBar ? selectedBar.name : candidate?.name}
+              </div>
+              <button
+                onClick={closePanel}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: 20,
+                  lineHeight: 1,
+                  color: '#6B7280',
+                  padding: '0 4px',
+                  flexShrink: 0,
+                }}
+                aria-label="Stäng"
+              >✕</button>
+            </div>
+
+            {status ? <div className={styles.status}>{status}</div> : null}
+
+            {/* Price section */}
+            {(() => {
+              const lp = selectedBar ? latestPrices.get(selectedBar.id) : null;
+              const hasPrice = !!lp;
+              const isNoNa = selectedBar?.no_na_beer;
+
+              if (isNoNa) {
+                // Already marked as no NA beer — show state + allow price correction
+                return (
+                  <>
+                    <div style={{
+                      background: '#FEF2F2',
+                      border: '2px solid #FECACA',
+                      borderRadius: 8,
+                      padding: '10px 14px',
+                      fontFamily: 'var(--font-body)',
+                      fontSize: 14,
+                      color: '#991B1B',
+                      fontWeight: 700,
+                    }}>
+                      ✕ Alkoholfri öl uppges saknas här
+                    </div>
+                    <div className={styles.fieldRow}>
+                      <input
+                        className={styles.input}
+                        inputMode="numeric"
+                        placeholder="Pris (10–150 kr)"
+                        value={priceInput}
+                        onChange={(e) => setPriceInput(e.target.value)}
+                        onKeyDown={onPanelKeyDown}
+                      />
+                      <button
+                        className={`${styles.btn} ${styles.btnDark}`}
+                        onClick={() => (selectedBar ? savePriceSelected() : savePriceCandidate())}
+                      >
+                        Lägg till pris
+                      </button>
+                    </div>
+                  </>
+                );
+              }
+
+              if (hasPrice && priceView === 'confirm') {
+                return (
+                  <>
+                    <div style={{
+                      background: '#f3f4f6',
+                      borderRadius: 8,
+                      padding: '10px 14px',
+                      display: 'flex',
+                      alignItems: 'baseline',
+                      gap: 5,
+                    }}>
+                      <span style={{
+                        fontFamily: 'var(--font-heading)',
+                        fontSize: 30,
+                        fontWeight: 700,
+                        color: '#111827',
+                        lineHeight: 1,
+                      }}>{lp!.price_sek}</span>
+                      <span style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: '#111827', fontWeight: 600 }}>kr</span>
+                      <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#9CA3AF', marginLeft: 'auto' }}>{fmtShort(lp!.created_at)}</span>
+                    </div>
+                    <div className={styles.btnRow}>
+                      <button
+                        className={`${styles.btn} ${styles.btnDark}`}
+                        style={{ flex: 1 }}
+                        onClick={() => { setPriceView('edit'); setStatus(''); }}
+                      >
+                        Uppdatera pris
+                      </button>
+                      {!selectedBar?.no_na_beer && (
+                        <button
+                          className={styles.btn}
+                          style={{ flex: 1 }}
+                          onClick={() => (selectedBar ? reportNoNaSelected() : reportNoNaCandidate())}
+                        >
+                          ✕ Saknas här
+                        </button>
+                      )}
+                    </div>
+                  </>
+                );
+              }
+
+              // No price, or edit mode
               return (
                 <>
-                  <div style={{
-                    background: '#FEF2F2',
-                    border: '2px solid #FECACA',
-                    borderRadius: 8,
-                    padding: '10px 14px',
-                    fontFamily: 'var(--font-body)',
-                    fontSize: 14,
-                    color: '#991B1B',
-                    fontWeight: 700,
-                  }}>
-                    ✕ Alkoholfri öl uppges saknas här
-                  </div>
+                  {!hasPrice && (
+                    <div style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: '#6B7280' }}>
+                      Inga priser rapporterade än.
+                    </div>
+                  )}
                   <div className={styles.fieldRow}>
                     <input
                       className={styles.input}
@@ -910,208 +994,213 @@ export default function Page() {
                       className={`${styles.btn} ${styles.btnDark}`}
                       onClick={() => (selectedBar ? savePriceSelected() : savePriceCandidate())}
                     >
-                      Lägg till pris
+                      {hasPrice ? 'Spara nytt pris' : 'Lägg till pris'}
                     </button>
+                    {hasPrice && (
+                      <button
+                        className={styles.btn}
+                        onClick={() => { setPriceView('confirm'); setStatus(''); setPriceInput(''); }}
+                      >
+                        Avbryt
+                      </button>
+                    )}
                   </div>
-                </>
-              );
-            }
-
-            if (hasPrice && priceView === 'confirm') {
-              return (
-                <>
-                  <div style={{
-                    background: '#f3f4f6',
-                    borderRadius: 8,
-                    padding: '10px 14px',
-                    display: 'flex',
-                    alignItems: 'baseline',
-                    gap: 5,
-                  }}>
-                    <span style={{
-                      fontFamily: 'var(--font-heading)',
-                      fontSize: 30,
-                      fontWeight: 700,
-                      color: '#111827',
-                      lineHeight: 1,
-                    }}>{lp!.price_sek}</span>
-                    <span style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: '#111827', fontWeight: 600 }}>kr</span>
-                    <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#9CA3AF', marginLeft: 'auto' }}>{fmtShort(lp!.created_at)}</span>
-                  </div>
-                  <button
-                    className={styles.btn}
-                    style={{ alignSelf: 'flex-start' }}
-                    onClick={() => { setPriceView('edit'); setStatus(''); }}
-                  >
-                    Uppdatera pris
-                  </button>
-                </>
-              );
-            }
-
-            // No price, or edit mode
-            return (
-              <>
-                {!hasPrice && (
-                  <div style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: '#6B7280' }}>
-                    Inga priser rapporterade än.
-                  </div>
-                )}
-                <div className={styles.fieldRow}>
-                  <input
-                    className={styles.input}
-                    inputMode="numeric"
-                    placeholder="Pris (10–150 kr)"
-                    value={priceInput}
-                    onChange={(e) => setPriceInput(e.target.value)}
-                    onKeyDown={onPanelKeyDown}
-                  />
-                  <button
-                    className={`${styles.btn} ${styles.btnDark}`}
-                    onClick={() => (selectedBar ? savePriceSelected() : savePriceCandidate())}
-                  >
-                    {hasPrice ? 'Spara nytt pris' : 'Lägg till pris'}
-                  </button>
-                  {hasPrice && (
-                    <button
-                      className={styles.btn}
-                      onClick={() => { setPriceView('confirm'); setStatus(''); setPriceInput(''); }}
-                    >
-                      Avbryt
-                    </button>
+                  {selectedBar && history.length > 0 && (
+                    <div className={styles.history}>
+                      <div className={styles.hint}>Senaste {history.length} priser</div>
+                      {history.map((h, idx) => (
+                        <div key={`${h.created_at}-${idx}`} className={styles.historyItem}>
+                          <div className={styles.historyLeft}>{h.price_sek} kr</div>
+                          <div className={styles.historyRight}>{fmtShort(h.created_at)}</div>
+                        </div>
+                      ))}
+                    </div>
                   )}
-                </div>
-                {selectedBar && history.length > 0 && (
-                  <div className={styles.history}>
-                    <div className={styles.hint}>Senaste {history.length} priser</div>
-                    {history.map((h, idx) => (
-                      <div key={`${h.created_at}-${idx}`} className={styles.historyItem}>
-                        <div className={styles.historyLeft}>{h.price_sek} kr</div>
-                        <div className={styles.historyRight}>{fmtShort(h.created_at)}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </>
-            );
-          })()}
+                </>
+              );
+            })()}
 
-          {/* No NA beer button — only show if not already marked */}
-          {!selectedBar?.no_na_beer && (
-            <button
-              className={styles.btn}
-              onClick={() => (selectedBar ? reportNoNaSelected() : reportNoNaCandidate())}
-              style={{ width: '100%', textAlign: 'left' }}
-            >
-              ✕ Alkoholfri öl saknas här
-            </button>
-          )}
-        </div>
-      ) : null}
-
-      {welcomeOpen ? (
-        <div className={styles.welcomeOverlay} onClick={() => setWelcomeOpen(false)}>
-          <div
-            className={styles.welcomeCard}
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: '#242f55',
-              color: '#fff',
-              maxWidth: 480,
-              padding: '40px 36px 32px',
-              borderRadius: 16,
-              border: '2px solid #111827',
-              boxShadow: '4px 4px 0 #111827',
-            }}
-          >
-            <div style={{
-              fontFamily: 'var(--font-heading)',
-              fontSize: 'clamp(28px, 5vw, 40px)',
-              lineHeight: 1.15,
-              marginBottom: 16,
-              color: '#fff',
-            }}>
-              Vad kostar alkoholfri öl?
-            </div>
-
-            <div style={{
-              fontFamily: 'var(--font-body)',
-              fontSize: 15,
-              lineHeight: 1.6,
-              color: '#fff',
-              marginBottom: 20,
-            }}>
-              En karta över priser på alkoholfri öl på barer och restauranger i Sverige.
-              Datan samlas in av besökare som du.
-            </div>
-
-            <div style={{
-              fontFamily: 'var(--font-body)',
-              fontSize: 14,
-              lineHeight: 1.8,
-              color: '#fff',
-              marginBottom: 28,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 4,
-            }}>
-              <div>→ Klicka på en plats för att se eller lägga till pris</div>
-              <div>→ Saknar stället alkoholfri öl? Markera det</div>
-              <div>→ Alla kan bidra – ju fler, desto bättre karta</div>
-            </div>
-
-            <button
-              className={`${styles.btn} ${styles.btnDark}`}
-              style={{
-                background: '#fff',
-                color: '#242f55',
-                border: '2px solid #fff',
-                fontWeight: 900,
-                fontSize: 15,
-                padding: '10px 24px',
-                width: '100%',
-                marginBottom: 28,
-              }}
-              onClick={() => setWelcomeOpen(false)}
-            >
-              Utforska kartan
-            </button>
-
-            <div style={{
-              borderTop: '1px solid rgba(255,255,255,0.3)',
-              paddingTop: 20,
-            }}>
-              <a
-                href="https://www.iq.se"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  textDecoration: 'none',
-                }}
+            {/* No NA beer button — only in edit/no-price view, not in confirm view */}
+            {priceView !== 'confirm' && !selectedBar?.no_na_beer && (
+              <button
+                className={styles.btn}
+                onClick={() => (selectedBar ? reportNoNaSelected() : reportNoNaCandidate())}
+                style={{ width: '100%', textAlign: 'left' }}
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src="/iq_logotype_darkblueyellow.svg"
-                  alt="IQ"
-                  style={{ height: 28 }}
-                />
-                <span style={{
-                  fontFamily: 'var(--font-body)',
-                  fontSize: 13,
-                  color: '#fff',
-                  textDecoration: 'underline',
-                  textUnderlineOffset: 3,
-                }}>
-                  Ett initiativ av IQ
-                </span>
-              </a>
+                ✕ Alkoholfri öl saknas här
+              </button>
+            )}
+          </div>
+        ) : null}
+
+        {welcomeOpen ? (
+          <div className={styles.welcomeOverlay} onClick={() => setWelcomeOpen(false)}>
+            <div
+              className={styles.welcomeCard}
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                background: '#242f55',
+                color: '#fff',
+                maxWidth: 480,
+                padding: '40px 36px 32px',
+                borderRadius: 16,
+                border: '2px solid #111827',
+                boxShadow: '4px 4px 0 #111827',
+              }}
+            >
+              <div style={{
+                fontFamily: 'var(--font-heading)',
+                fontSize: 'clamp(28px, 5vw, 40px)',
+                lineHeight: 1.15,
+                marginBottom: 16,
+                color: '#fff',
+              }}>
+                Vad kostar alkoholfri öl?
+              </div>
+
+              <div style={{
+                fontFamily: 'var(--font-body)',
+                fontSize: 15,
+                lineHeight: 1.6,
+                color: '#fff',
+                marginBottom: 20,
+              }}>
+                En karta över priser på alkoholfri öl på barer och restauranger i Sverige.
+                Datan samlas in av besökare som du.
+              </div>
+
+              <div style={{
+                fontFamily: 'var(--font-body)',
+                fontSize: 14,
+                lineHeight: 1.8,
+                color: '#fff',
+                marginBottom: 28,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 4,
+              }}>
+                <div>→ Klicka på en plats för att se eller lägga till pris</div>
+                <div>→ Saknar stället alkoholfri öl? Markera det</div>
+                <div>→ Alla kan bidra – ju fler, desto bättre karta</div>
+              </div>
+
+              <button
+                className={`${styles.btn} ${styles.btnDark}`}
+                style={{
+                  background: '#fff',
+                  color: '#242f55',
+                  border: '2px solid #fff',
+                  fontWeight: 900,
+                  fontSize: 15,
+                  padding: '10px 24px',
+                  width: '100%',
+                  marginBottom: 28,
+                }}
+                onClick={() => setWelcomeOpen(false)}
+              >
+                Utforska kartan
+              </button>
+
+              <div style={{
+                borderTop: '1px solid rgba(255,255,255,0.3)',
+                paddingTop: 20,
+              }}>
+                <a
+                  href="https://www.iq.se"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    textDecoration: 'none',
+                  }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/iq_logotype_darkblueyellow.svg"
+                    alt="IQ"
+                    style={{ height: 28 }}
+                  />
+                  <span style={{
+                    fontFamily: 'var(--font-body)',
+                    fontSize: 13,
+                    color: '#fff',
+                    textDecoration: 'underline',
+                    textUnderlineOffset: 3,
+                  }}>
+                    Ett initiativ av IQ
+                  </span>
+                </a>
+              </div>
             </div>
           </div>
-        </div>
-      ) : null}
+        ) : null}
+
+        {omOpen ? (
+          <div className={styles.welcomeOverlay} onClick={() => setOmOpen(false)}>
+            <div
+              className={styles.welcomeCard}
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                background: '#ffffff',
+                maxWidth: 500,
+                padding: '32px 28px',
+                borderRadius: 16,
+                border: '1px solid #e5e7eb',
+                boxShadow: '0 8px 32px rgba(0,0,0,0.14)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 0,
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+                <div style={{ fontFamily: 'var(--font-heading)', fontSize: 26, color: '#111827', lineHeight: 1.2 }}>
+                  Om projektet
+                </div>
+                <button
+                  onClick={() => setOmOpen(false)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: '#6B7280', padding: '0 0 0 12px', lineHeight: 1 }}
+                  aria-label="Stäng"
+                >✕</button>
+              </div>
+
+              <div style={{ fontFamily: 'var(--font-body)', fontSize: 14, lineHeight: 1.7, color: '#374151', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <p style={{ margin: 0 }}>
+                  <strong>Vad kostar nollan?</strong> är en öppen karta som visar priser på alkoholfri öl på barer, restauranger och andra serveringsställen runt om i Sverige.
+                </p>
+
+                <div>
+                  <div style={{ fontFamily: 'var(--font-heading)', fontSize: 15, color: '#111827', marginBottom: 6 }}>Hur samlas data in?</div>
+                  <p style={{ margin: 0 }}>
+                    All data i kartan rapporteras av besökare som du. När du besöker ett ställe och vill dela priset du betalat, klickar du på platsen och lägger till priset. Det finns ingen redaktion eller kvalitetskontroll — vi litar på att communityn bidrar med korrekta uppgifter.
+                  </p>
+                </div>
+
+                <div style={{ background: '#FEF3C7', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#92400E' }}>
+                  Observera att uppgifterna kan vara inaktuella eller felaktiga. Priser ändras och vi kan inte garantera att informationen stämmer vid ditt besök.
+                </div>
+
+                <div>
+                  <div style={{ fontFamily: 'var(--font-heading)', fontSize: 15, color: '#111827', marginBottom: 6 }}>Varför?</div>
+                  <p style={{ margin: 0 }}>
+                    Att dricka alkoholfri öl ska inte behöva kosta skjortan. Det här projektet vill göra det enklare att hitta ställen där du kan njuta av ett gott alkoholfritt alternativ till ett rimligt pris — oavsett om du väljer att inte dricka alkohol av hälsoskäl, kör bil, är gravid, eller helt enkelt föredrar det.
+                  </p>
+                </div>
+
+                <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: 16 }}>
+                  <p style={{ margin: 0, color: '#6B7280', fontSize: 13 }}>
+                    Projektet drivs av{' '}
+                    <a href="https://www.iq.se" target="_blank" rel="noopener noreferrer" style={{ color: '#111827', fontWeight: 600 }}>IQ</a>
+                    {' '}— en organisation som arbetar för ett sundare förhållande till alkohol i Sverige.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+      </div>
     </div>
   );
 }
