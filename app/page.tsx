@@ -474,6 +474,34 @@ export default function Page() {
         window.history.replaceState(null, '', buildBarUrl(b.id));
         loadHistory(b.id).catch(console.error);
         focusPoint(b.lng, b.lat);
+
+        // Backfill opening_hours for existing bars that don't have it yet
+        if (!b.opening_hours) {
+          const m = mapRef.current;
+          if (m) {
+            const pt = m.project([b.lng, b.lat]);
+            const feats = m.queryRenderedFeatures(pt);
+            for (const f of feats) {
+              const props = f.properties ?? {};
+              const oh = props['opening_hours'] ?? props['opening_hours:signed'] ?? null;
+              if (oh) {
+                const ohStr = String(oh).trim();
+                fetch('/api/patch-bar', {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ bar_id: b.id, opening_hours: ohStr, demo: isDemoMode }),
+                }).then(r => r.json()).then(data => {
+                  if (data.ok) {
+                    setBars(prev => prev.map(bar =>
+                      bar.id === b.id ? { ...bar, opening_hours: ohStr } : bar
+                    ));
+                  }
+                }).catch(console.error);
+                break;
+              }
+            }
+          }
+        }
       });
     }
 
