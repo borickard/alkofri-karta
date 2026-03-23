@@ -286,34 +286,25 @@ export default function Page() {
 
     clearMarkers();
 
-    function makePin(bg: string, border: string) {
-      const pin = document.createElement('div');
-      pin.style.display = 'flex';
-      pin.style.flexDirection = 'column';
-      pin.style.alignItems = 'center';
-      pin.style.pointerEvents = 'auto';
-      pin.style.cursor = 'pointer';
-
-      const head = document.createElement('div');
-      head.style.width = '14px';
-      head.style.height = '14px';
-      head.style.borderRadius = '999px';
-      head.style.background = bg;
-      head.style.border = `2px solid ${border}`;
-      head.style.boxShadow = '1px 1px 0 #111827';
-
-      const tip = document.createElement('div');
-      tip.style.width = '0';
-      tip.style.height = '0';
-      tip.style.borderLeft = '6px solid transparent';
-      tip.style.borderRight = '6px solid transparent';
-      tip.style.borderTop = `8px solid ${border}`;
-      tip.style.marginTop = '-2px';
-      tip.style.filter = 'drop-shadow(1px 1px 0 #111827)';
-
-      pin.appendChild(head);
-      pin.appendChild(tip);
-      return pin;
+    function makeMarkerEl(text: string, bg: string, borderColor: string, small: boolean): HTMLElement {
+      const el = document.createElement('div');
+      el.style.display = 'inline-flex';
+      el.style.alignItems = 'center';
+      el.style.justifyContent = 'center';
+      el.style.borderRadius = '999px';
+      el.style.background = bg;
+      el.style.border = `1.5px solid ${borderColor}`;
+      el.style.boxShadow = '0 1px 4px rgba(0,0,0,0.18)';
+      el.style.cursor = 'pointer';
+      el.style.fontWeight = '700';
+      el.style.lineHeight = '1';
+      el.style.whiteSpace = 'nowrap';
+      el.style.color = '#111827';
+      el.style.fontFamily = 'var(--font-body)';
+      el.style.fontSize = small ? '11px' : '13px';
+      el.style.padding = small ? '3px 7px' : '4px 10px';
+      el.textContent = text;
+      return el;
     }
 
     function addListeners(el: HTMLElement, nameEl: HTMLElement, b: Bar) {
@@ -357,10 +348,10 @@ export default function Page() {
     for (const b of allBars) {
       const lp = pricesMap.get(b.id);
       const noNa = Boolean(b.no_na_beer);
-      const showText = (zoomRef.current ?? map.getZoom()) >= PRICE_TEXT_ZOOM;
+      const small = (zoomRef.current ?? map.getZoom()) < PRICE_TEXT_ZOOM;
 
-      if (!showText && noNa) continue;
       if (!lp && !noNa) continue;
+      if (noNa && small) continue;
 
       const wrap = document.createElement('div');
       wrap.style.pointerEvents = 'auto';
@@ -372,83 +363,29 @@ export default function Page() {
 
       const name = document.createElement('div');
       name.textContent = b.name;
-      name.style.fontWeight = '900';
+      name.style.fontWeight = '600';
       name.style.fontSize = '12px';
       name.style.color = '#111827';
-      name.style.padding = '4px 8px';
+      name.style.padding = '3px 8px';
       name.style.border = '1px solid #d1d5db';
-      name.style.boxShadow = '0 0 0 1px rgba(0,0,0,0.06)';
+      name.style.boxShadow = '0 1px 3px rgba(0,0,0,0.10)';
       name.style.borderRadius = '999px';
-      name.style.background = '#FFFFFF';
+      name.style.background = '#ffffff';
       name.style.display = 'none';
+      name.style.whiteSpace = 'nowrap';
 
-      const pill = document.createElement('div');
-      pill.style.borderRadius = '999px';
-      pill.style.border = '2px solid #111827';
-      pill.style.boxShadow = '1px 1px 0 #111827';
-      pill.style.cursor = 'pointer';
-
+      let markerEl: HTMLElement;
       if (noNa) {
-        pill.style.background = '#F9FAFB';
-        pill.style.color = '#111827';
-        pill.style.border = '2px solid #000';
-        pill.style.fontWeight = '900';
-        pill.style.lineHeight = '1';
-        pill.style.display = 'inline-flex';
-        pill.style.alignItems = 'center';
-        pill.style.justifyContent = 'center';
-
-        if (showText) {
-          pill.textContent = '✕';
-          pill.style.padding = '4px 6px';
-          pill.style.minWidth = 'unset';
-          pill.style.width = 'auto';
-          pill.style.height = 'auto';
-        } else {
-          const pin = makePin('#F9FAFB', '#000');
-          wrap.appendChild(name);
-          wrap.appendChild(pin);
-          addListeners(wrap, name, b);
-          const marker = new maplibregl.Marker({ element: wrap, anchor: 'bottom' })
-            .setLngLat([b.lng, b.lat])
-            .addTo(map);
-          markersRef.current.set(b.id, marker);
-          continue;
-        }
-      } else if (lp) {
-        const price = lp.price_sek;
+        markerEl = makeMarkerEl('✕', '#f9fafb', '#9ca3af', small);
+      } else {
+        const price = lp!.price_sek;
         const c = colorsForPrice(price);
-
-        pill.style.background = c.bg;
-        pill.style.border = `2px solid ${c.border}`;
-        pill.style.color = '#111827';
-        pill.style.fontWeight = '1000';
-        pill.style.display = 'inline-flex';
-        pill.style.alignItems = 'center';
-        pill.style.justifyContent = 'center';
-        pill.style.lineHeight = '1';
-
-        if (showText) {
-          pill.textContent = `${price} kr`;
-          pill.style.padding = '0 12px';
-          pill.style.minWidth = '54px';
-          pill.style.height = '30px';
-        } else {
-          const pin = makePin(c.bg, c.border);
-          wrap.appendChild(name);
-          wrap.appendChild(pin);
-          addListeners(wrap, name, b);
-          const marker = new maplibregl.Marker({ element: wrap, anchor: 'bottom' })
-            .setLngLat([b.lng, b.lat])
-            .addTo(map);
-          markersRef.current.set(b.id, marker);
-          continue;
-        }
+        markerEl = makeMarkerEl(small ? `${price}` : `${price} kr`, c.bg, c.border, small);
       }
 
       addListeners(wrap, name, b);
       wrap.appendChild(name);
-      wrap.appendChild(pill);
+      wrap.appendChild(markerEl);
 
       const marker = new maplibregl.Marker({ element: wrap, anchor: 'bottom' })
         .setLngLat([b.lng, b.lat])
