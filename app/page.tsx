@@ -792,7 +792,7 @@ export default function Page() {
               flex: 1,
               minWidth: 0,
             }}>
-              {selectedBar ? selectedBar.name : candidate ? candidate.name : 'Plats'}
+              {selectedBar ? selectedBar.name : candidate?.name}
             </div>
             <button
               onClick={closePanel}
@@ -834,7 +834,6 @@ export default function Page() {
                   }}>
                     ✕ Alkoholfri öl uppges saknas här
                   </div>
-                  <div className={styles.hint}>Har de börjat servera? Lägg till ett pris nedan.</div>
                   <div className={styles.fieldRow}>
                     <input
                       className={styles.input}
@@ -858,9 +857,6 @@ export default function Page() {
             if (hasPrice && priceView === 'confirm') {
               return (
                 <>
-                  <div style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#6B7280' }}>
-                    Senast rapporterat pris
-                  </div>
                   <div style={{
                     background: '#f3f4f6',
                     borderRadius: 8,
