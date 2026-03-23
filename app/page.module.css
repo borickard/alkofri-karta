@@ -371,13 +371,12 @@
   z-index: 20;
   display: flex;
   flex-direction: column;
-  gap: 0;
   background: #ffffff;
   border: 1px solid #d1d5db;
   box-shadow: 0 0 0 1px rgba(0,0,0,0.06);
   border-radius: 4px;
   padding: 3px;
-  max-width: calc(100vw - 140px); /* leave room for logo on left */
+  max-width: calc(100vw - 140px);
 }
 
 .filterRow {
@@ -386,10 +385,26 @@
   gap: 2px;
 }
 
+/* Horizontal separator between rows (mobile) */
 .filterRowSep {
   height: 1px;
   background: #e5e7eb;
   margin: 2px 0;
+}
+
+/* On desktop: collapse to a single row */
+@media (min-width: 640px) {
+  .filterBar {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  /* Become a vertical divider */
+  .filterRowSep {
+    width: 1px;
+    height: 18px;
+    margin: 0 2px;
+  }
 }
 
 .filterSep {
