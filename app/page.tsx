@@ -540,7 +540,7 @@ export default function Page() {
     });
     const j = await r.json();
     if (!j.ok) { setStatus(`Fel: ${j.error || 'okänt fel'}`); return; }
-    setStatus('Sparat.');
+    setStatus('');
     setPriceInput('');
     await loadBarsAndPrices();
     await loadHistory(selectedBar.id);
@@ -559,10 +559,15 @@ export default function Page() {
     });
     const j = await r.json();
     if (!j.ok) { setStatus(`Fel: ${j.error || 'okänt fel'}`); return; }
-    setStatus('Sparat.');
+    setStatus('');
     setPriceInput('');
-    setCandidate(null);
     await loadBarsAndPrices();
+    if (j.bar_id) {
+      setSelectedBarId(j.bar_id);
+      await loadHistory(j.bar_id);
+      setPriceView('confirm');
+    }
+    setCandidate(null);
   }
 
   async function reportNoNaSelected() {
@@ -774,7 +779,7 @@ export default function Page() {
       {isDemoMode && (
         <div style={{
           position: 'absolute',
-          bottom: 40,
+          bottom: 64,
           left: '50%',
           transform: 'translateX(-50%)',
           zIndex: 30,

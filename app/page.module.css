@@ -340,10 +340,10 @@
 
 .siteTitle {
   font-family: var(--font-heading);
-  font-size: 18px;
+  font-size: 24px;
   font-weight: 400;
   color: #111827;
-  line-height: 1;
+  line-height: 34px; /* matches mobile logo height */
   white-space: nowrap;
 }
 
@@ -372,37 +372,28 @@
   }
 
   .siteTitle {
-    font-size: 28px;
+    font-size: 40px;
+    line-height: 56px; /* matches desktop logo height */
   }
 }
 
-/* Filter toolbar — mobile: below brand, left-aligned, vertical */
+/* Filter toolbar — bottom center, always horizontal */
 .filterBar {
   position: absolute;
-  top: 62px; /* 14px top + 34px logo + 14px gap */
-  left: 14px;
-  transform: none;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 20;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: center;
   gap: 4px;
   background: #ffffff;
   border: 1px solid #d1d5db;
   box-shadow: 0 0 0 1px rgba(0,0,0,0.06);
   border-radius: 4px;
   padding: 4px;
-}
-
-/* Desktop: centered at top, single row */
-@media (min-width: 640px) {
-  .filterBar {
-    top: 12px;
-    left: 50%;
-    transform: translateX(-50%);
-    flex-direction: row;
-    align-items: center;
-    max-width: calc(100vw - 500px);
-  }
+  max-width: calc(100vw - 24px);
 }
 
 .filterBtn {
@@ -420,13 +411,6 @@
   transition: background 0.1s, opacity 0.15s, border-color 0.1s;
   flex-shrink: 0;
   user-select: none;
-  width: 100%; /* stretch in vertical (mobile) layout */
-}
-
-@media (min-width: 640px) {
-  .filterBtn {
-    width: auto;
-  }
 }
 
 .filterBtn:hover {
