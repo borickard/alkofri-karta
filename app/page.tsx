@@ -475,32 +475,27 @@ export default function Page() {
         loadHistory(b.id).catch(console.error);
         focusPoint(b.lng, b.lat);
 
-        // Backfill opening_hours for existing bars that don't have it yet
+        // Backfill opening_hours via Overpass API for bars that don't have it yet
         if (!b.opening_hours) {
-          const m = mapRef.current;
-          if (m) {
-            const pt = m.project([b.lng, b.lat]);
-            const feats = m.queryRenderedFeatures(pt);
-            for (const f of feats) {
-              const props = f.properties ?? {};
-              const oh = props['opening_hours'] ?? props['opening_hours:signed'] ?? null;
-              if (oh) {
-                const ohStr = String(oh).trim();
-                fetch('/api/patch-bar', {
-                  method: 'PATCH',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ bar_id: b.id, opening_hours: ohStr, demo: isDemoMode }),
-                }).then(r => r.json()).then(data => {
-                  if (data.ok) {
-                    setBars(prev => prev.map(bar =>
-                      bar.id === b.id ? { ...bar, opening_hours: ohStr } : bar
-                    ));
-                  }
-                }).catch(console.error);
-                break;
-              }
-            }
-          }
+          const q = `[out:json][timeout:10];(node["opening_hours"](around:50,${b.lat},${b.lng});way["opening_hours"](around:50,${b.lat},${b.lng}););out body qt 1;`;
+          fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(q)}`)
+            .then(r => r.json())
+            .then((data: { elements?: { tags?: { opening_hours?: string } }[] }) => {
+              const oh = data?.elements?.[0]?.tags?.opening_hours;
+              if (!oh) return;
+              fetch('/api/patch-bar', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ bar_id: b.id, opening_hours: oh, demo: isDemoMode }),
+              }).then(r => r.json()).then(patchData => {
+                if (patchData.ok) {
+                  setBars(prev => prev.map(bar =>
+                    bar.id === b.id ? { ...bar, opening_hours: oh } : bar
+                  ));
+                }
+              }).catch(console.error);
+            })
+            .catch(console.error);
         }
       });
     }
