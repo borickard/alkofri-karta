@@ -355,6 +355,7 @@ export default function Page() {
   const [priceView, setPriceView] = useState<'confirm' | 'edit'>('confirm');
   const [ohLoading, setOhLoading] = useState(false);
   const [ohChecked, setOhChecked] = useState(false);
+  const [ohSourceName, setOhSourceName] = useState<string | null>(null);
 
   const [activeColors, setActiveColors] = useState<Set<PriceTier>>(() => {
     const param = searchParams.get('colors');
@@ -382,6 +383,7 @@ export default function Page() {
       // Only mark as checked (and show "ej tillgängliga") when the request succeeded
       // — even if no opening_hours was found in OSM
       onResult(data.ok && data.opening_hours ? String(data.opening_hours) : null);
+      setOhSourceName(data.osm_name ?? null);
       setOhChecked(true);
     }).catch(() => {
       // Network/timeout error — don't show "ej tillgängliga", just stop the spinner
@@ -790,6 +792,7 @@ export default function Page() {
     setPriceView('confirm');
     setOhLoading(false);
     setOhChecked(false);
+    setOhSourceName(null);
   }
 
   function onPanelKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -1064,6 +1067,7 @@ export default function Page() {
                 {(selectedBar?.opening_hours ?? candidate?.opening_hours) && (
                   <div style={{ fontFamily: 'var(--font-body)', fontSize: 10, color: '#9ca3af', marginTop: 2, wordBreak: 'break-all' }}>
                     {selectedBar?.opening_hours ?? candidate?.opening_hours}
+                    {ohSourceName && <> · OSM: <em>{ohSourceName}</em></>}
                   </div>
                 )}
               </div>

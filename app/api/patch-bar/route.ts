@@ -85,6 +85,7 @@ export async function PATCH(req: Request) {
     // If opening_hours is provided directly, use it; otherwise fetch from Overpass
     let opening_hours: string | null = body.opening_hours ? String(body.opening_hours).trim() : null;
 
+    let osm_name: string | null = null;
     if (!opening_hours) {
       const lat = body.lat ? Number(body.lat) : null;
       const lng = body.lng ? Number(body.lng) : null;
@@ -92,6 +93,7 @@ export async function PATCH(req: Request) {
       const result = await fetchOpeningHours(lat, lng);
       if (!result) return NextResponse.json({ ok: false, error: 'Ingen öppettidsdata hittad' });
       opening_hours = result.oh;
+      osm_name = result.name;
     }
 
     // If bar_id provided, save to DB; otherwise just return the value (fetch-only mode)
@@ -103,7 +105,7 @@ export async function PATCH(req: Request) {
       if (error) return jsonError(`DB: ${error.message}`, 500);
     }
 
-    return NextResponse.json({ ok: true, opening_hours });
+    return NextResponse.json({ ok: true, opening_hours, osm_name });
   } catch (e: unknown) {
     return jsonError(e instanceof Error ? e.message : 'Server error', 500);
   }
