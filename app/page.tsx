@@ -372,10 +372,14 @@ export default function Page() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ lat, lng, ...(barId ? { bar_id: barId, demo: isDemoMode } : {}) }),
     }).then(r => r.json()).then(data => {
+      // Only mark as checked (and show "ej tillgängliga") when the request succeeded
+      // — even if no opening_hours was found in OSM
       onResult(data.ok && data.opening_hours ? String(data.opening_hours) : null);
-    }).catch(() => onResult(null)).finally(() => {
-      setOhLoading(false);
       setOhChecked(true);
+    }).catch(() => {
+      // Network/timeout error — don't show "ej tillgängliga", just stop the spinner
+    }).finally(() => {
+      setOhLoading(false);
     });
   }
 
