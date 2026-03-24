@@ -302,6 +302,7 @@ export default function Page() {
   const [status, setStatus] = useState('');
   const [history, setHistory] = useState<LatestPrice[]>([]);
   const [priceView, setPriceView] = useState<'confirm' | 'edit'>('confirm');
+  const [ohLoading, setOhLoading] = useState(false);
 
   const [activeColors, setActiveColors] = useState<Set<PriceTier>>(() => {
     const param = searchParams.get('colors');
@@ -788,6 +789,20 @@ export default function Page() {
       setPriceInput('');
       setPriceView('confirm');
       focusPoint(cand.lng, cand.lat);
+
+      // Fetch opening_hours for candidate (MapTiler doesn't include it in tiles)
+      if (!cand.opening_hours) {
+        setOhLoading(true);
+        fetch('/api/patch-bar', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lat: cand.lat, lng: cand.lng }),
+        }).then(r => r.json()).then(data => {
+          if (data.ok && data.opening_hours) {
+            setCandidate(prev => prev ? { ...prev, opening_hours: data.opening_hours } : prev);
+          }
+        }).catch(console.error).finally(() => setOhLoading(false));
+      }
     };
 
     map.on('zoom', onZoom);
@@ -956,15 +971,14 @@ export default function Page() {
                 {(() => {
                   const oh = selectedBar?.opening_hours ?? candidate?.opening_hours ?? null;
                   const status = isOpenNow(oh);
+                  if (ohLoading && !oh) {
+                    return <div style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#9ca3af', marginTop: 2 }}>Hämtar öppettider…</div>;
+                  }
+                  if (status === null) return null;
                   return (
-                    <>
-                      {oh && <div style={{ fontFamily: 'var(--font-body)', fontSize: 10, color: '#999', marginTop: 1 }}>[DEBUG: {oh}]</div>}
-                      {status !== null && (
-                        <div style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600, color: status ? '#059669' : '#DC2626', marginTop: 2 }}>
-                          {status ? '● Öppet nu' : '● Stängt'}
-                        </div>
-                      )}
-                    </>
+                    <div style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600, color: status ? '#059669' : '#DC2626', marginTop: 2 }}>
+                      {status ? '● Öppet nu' : '● Stängt'}
+                    </div>
                   );
                 })()}
               </div>

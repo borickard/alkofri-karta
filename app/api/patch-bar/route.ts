@@ -48,8 +48,6 @@ export async function PATCH(req: Request) {
     if (!body) return jsonError('Ogiltig JSON.');
 
     const bar_id = body.bar_id ? Number(body.bar_id) : null;
-    if (!bar_id) return jsonError('bar_id saknas.');
-
     const demo = Boolean(body.demo);
     const barsTable = demo ? 'bars_demo' : 'bars';
 
@@ -64,12 +62,14 @@ export async function PATCH(req: Request) {
       if (!opening_hours) return NextResponse.json({ ok: false, error: 'Ingen öppettidsdata hittad' });
     }
 
-    const { error } = await supabase
-      .from(barsTable)
-      .update({ opening_hours })
-      .eq('id', bar_id);
-
-    if (error) return jsonError(`DB: ${error.message}`, 500);
+    // If bar_id provided, save to DB; otherwise just return the value (fetch-only mode)
+    if (bar_id) {
+      const { error } = await supabase
+        .from(barsTable)
+        .update({ opening_hours })
+        .eq('id', bar_id);
+      if (error) return jsonError(`DB: ${error.message}`, 500);
+    }
 
     return NextResponse.json({ ok: true, opening_hours });
   } catch (e: unknown) {
