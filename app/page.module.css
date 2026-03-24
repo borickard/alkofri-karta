@@ -520,6 +520,29 @@
   background: #f9fafb;
 }
 
+.searchResultItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.searchResultSub {
+  font-size: 11px;
+  color: #9ca3af;
+  font-weight: 400;
+}
+
+.searchResultDivider {
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: #f9fafb;
+  border-bottom: 1px solid #f3f4f6;
+}
+
 .searchEmpty {
   padding: 10px 12px;
   font-size: 14px;

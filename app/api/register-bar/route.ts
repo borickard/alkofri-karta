@@ -26,6 +26,7 @@ export async function POST(req: Request) {
     const lng = Number(body.lng);
     const source_id_raw = body.source_id ?? body.sourceId ?? null;
     const source_id = source_id_raw === null ? null : String(source_id_raw);
+    const source = body.source ? String(body.source) : 'maptiler';
     const venue_type = body.venue_type ? String(body.venue_type) : null;
     const opening_hours = body.opening_hours ? String(body.opening_hours).trim() : null;
 
@@ -38,7 +39,7 @@ export async function POST(req: Request) {
         name,
         lat,
         lng,
-        source: 'maptiler',
+        source,
         source_id: source_id ?? `fallback-${name}-${lat.toFixed(6)}-${lng.toFixed(6)}`,
         venue_type,
         opening_hours,

@@ -437,6 +437,23 @@ export default function AdminPage() {
                       </button>
                     </div>
                   )}
+                  {a.action === 'report_no_na' && a.bar_id && (
+                    <div style={{ marginTop: 8 }}>
+                      <button style={btn('light')} onClick={async () => {
+                        if (!confirm(`Ångra no-NA för bar_id ${a.bar_id}?`)) return;
+                        const r = await fetch('/api/admin/clear-no-na', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ bar_id: a.bar_id, demo: isDemo }),
+                        });
+                        const j = await r.json();
+                        if (j.ok) alert('no_na_beer återställt.');
+                        else alert('Fel: ' + j.error);
+                      }}>
+                        Ångra no-NA (bar_id {a.bar_id})
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
               {!audit.length && <div style={muted}>Inga events.</div>}

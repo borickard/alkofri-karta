@@ -348,7 +348,10 @@ export default function Page() {
   const [omOpen, setOmOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [googleResults, setGoogleResults] = useState<{ google_place_id: string | null; name: string; address: string | null; lat: number; lng: number }[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [selectedBarId, setSelectedBarId] = useState<number | null>(null);
   const selectedBar = useMemo(() => (selectedBarId ? bars.find(b => b.id === selectedBarId) ?? null : null), [bars, selectedBarId]);
   const [candidate, setCandidate] = useState<Candidate | null>(null);
@@ -819,8 +822,68 @@ export default function Page() {
   }
 
   const searchResults = searchQuery.trim().length > 0
-    ? bars.filter(b => normalizeSearch(b.name).includes(normalizeSearch(searchQuery.trim()))).slice(0, 8)
+    ? bars.filter(b => normalizeSearch(b.name).includes(normalizeSearch(searchQuery.trim()))).slice(0, 5)
     : [];
+
+  const dbNames = new Set(searchResults.map(b => normalizeSearch(b.name)));
+  const deduplicatedGoogleResults = googleResults.filter(p => !dbNames.has(normalizeSearch(p.name)));
+
+  function handleSearchInput(q: string) {
+    setSearchQuery(q);
+    setGoogleResults([]);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    if (q.trim().length < 2) { setSearchLoading(false); return; }
+    setSearchLoading(true);
+    const center = mapRef.current?.getCenter();
+    const lng = center?.lng ?? 18.0649;
+    const lat = center?.lat ?? 59.3326;
+    searchDebounceRef.current = setTimeout(() => {
+      fetch(`/api/search-places?q=${encodeURIComponent(q.trim())}&lat=${lat}&lng=${lng}`)
+        .then(r => r.json())
+        .then(data => { if (data.ok) setGoogleResults(data.results ?? []); })
+        .catch(() => {})
+        .finally(() => setSearchLoading(false));
+    }, 350);
+  }
+
+  function openGoogleResult(place: { google_place_id: string | null; name: string; address: string | null; lat: number; lng: number }) {
+    setSearchOpen(false);
+    setSearchQuery('');
+    setGoogleResults([]);
+    fetch('/api/register-bar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: place.name,
+        lat: place.lat,
+        lng: place.lng,
+        source: 'osm',
+        source_id: place.google_place_id,
+        demo: isDemoMode,
+      }),
+    }).then(r => r.json()).then(j => {
+      if (!j.ok || !j.bar_id) return;
+      setOhChecked(false);
+      setOhLoading(false);
+      setOhSourceName(null);
+      setOhSource(null);
+      setAddress(place.address);
+      setCandidate(null);
+      setSelectedBarId(j.bar_id);
+      setPanelOpen(true);
+      setStatus('');
+      setHistory([]);
+      setPriceInput('');
+      setPriceView('confirm');
+      window.history.replaceState(null, '', buildBarUrl(j.bar_id));
+      loadHistory(j.bar_id).catch(console.error);
+      focusPoint(place.lng, place.lat);
+      loadBarsAndPrices().catch(console.error);
+      fetchAndStoreOH(place.lat, place.lng, j.bar_id, place.name, oh => {
+        if (oh) setBars(prev => prev.map(b => b.id === j.bar_id ? { ...b, opening_hours: oh } : b));
+      });
+    }).catch(console.error);
+  }
 
   function openBarFromSearch(b: Bar) {
     setSearchOpen(false);
@@ -1060,19 +1123,31 @@ export default function Page() {
             className={styles.searchInput}
             placeholder="Sök ställe…"
             value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Escape') { setSearchOpen(false); setSearchQuery(''); } }}
+            onChange={e => handleSearchInput(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Escape') { setSearchOpen(false); setSearchQuery(''); setGoogleResults([]); } }}
           />
-          {searchResults.length > 0 && (
+          {(searchResults.length > 0 || deduplicatedGoogleResults.length > 0 || searchLoading) && (
             <ul className={styles.searchResults}>
               {searchResults.map(b => (
                 <li key={b.id} className={styles.searchResultItem} onClick={() => openBarFromSearch(b)}>
                   {b.name}
                 </li>
               ))}
+              {deduplicatedGoogleResults.length > 0 && (
+                <>
+                  {searchResults.length > 0 && <li className={styles.searchResultDivider}>Fler platser</li>}
+                  {deduplicatedGoogleResults.map((p, i) => (
+                    <li key={p.google_place_id ?? i} className={styles.searchResultItem} onClick={() => openGoogleResult(p)}>
+                      <span>{p.name}</span>
+                      {p.address && <span className={styles.searchResultSub}>{p.address}</span>}
+                    </li>
+                  ))}
+                </>
+              )}
+              {searchLoading && <li className={styles.searchResultDivider}>Söker…</li>}
             </ul>
           )}
-          {searchQuery.trim().length > 0 && searchResults.length === 0 && (
+          {searchQuery.trim().length > 0 && !searchLoading && searchResults.length === 0 && googleResults.length === 0 && (
             <div className={styles.searchEmpty}>Inga resultat</div>
           )}
         </div>
@@ -1199,9 +1274,9 @@ export default function Page() {
                   return <div style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600, color: '#DC2626', marginTop: 2 }}>● {closedLabel}</div>;
                 })()}
                 {address && (() => {
-                  const lat = selectedBar?.lat ?? candidate?.lat;
-                  const lng = selectedBar?.lng ?? candidate?.lng;
-                  const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+                  const name = selectedBar?.name ?? candidate?.name ?? '';
+                  const query = name ? `${name}, ${address}` : address;
+                  const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query!)}`;
                   return (
                     <a
                       href={mapsUrl}
