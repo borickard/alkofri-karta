@@ -324,8 +324,8 @@
 
 .devBtn {
   position: absolute;
-  left: 60px;
-  bottom: 12px;
+  left: 8px;
+  bottom: 64px;
   z-index: 30;
   background: #ffffff;
   color: #111827;

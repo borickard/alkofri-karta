@@ -1266,14 +1266,6 @@ export default function Page() {
           </button>
         </div>
 
-        <div style={{ position: 'absolute', right: 12, bottom: 12, zIndex: 30 }}>
-          <button
-            className={styles.mapBtn}
-            onClick={() => setWelcomeOpen(true)}
-            aria-label="Om kartan"
-            title="Om kartan"
-          >?</button>
-        </div>
 
         {panelOpen ? (
           <div ref={panelRef} className={styles.panel}>
@@ -1497,7 +1489,11 @@ export default function Page() {
                 onClick={undoLast}
                 style={{ width: '100%', color: '#6b7280', fontSize: 13 }}
               >
-                {'↩\uFE0E'} Ångra
+                <svg width="13" height="13" viewBox="0 0 13 13" fill="none" style={{ marginRight: 5, verticalAlign: 'middle', flexShrink: 0 }}>
+                  <path d="M4.5 2.5 L1.5 5.5 L4.5 8.5" stroke="#6b7280" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M1.5 5.5 H8.5 C10.16 5.5 11.5 6.84 11.5 8.5 V9.5" stroke="#6b7280" strokeWidth="1.5" strokeLinecap="round"/>
+                </svg>
+                Ångra
               </button>
             )}
           </div>
