@@ -387,9 +387,6 @@
   background: #e5e7eb;
 }
 
-.filterBtnOn {
-  /* bg/border/color set via inline style per tier */
-}
 
 .filterBtnOn:hover {
   filter: brightness(0.95);
