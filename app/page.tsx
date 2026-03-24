@@ -108,11 +108,16 @@ function applyFilters(
   colors: Set<PriceTier>,
   types: Set<VenueType>,
   t: Thresholds,
+  openNow = false,
 ): Bar[] {
   return allBars.filter(b => {
     if (!types.has(classifyVenueType(b))) return false;
     const lp = pricesMap.get(b.id);
     if (lp && !colors.has(priceTierOf(lp.price_sek, t))) return false;
+    if (openNow) {
+      const status = getOpenStatus(b.opening_hours);
+      if (!status || !status.open) return false;
+    }
     return true;
   });
 }
@@ -361,6 +366,8 @@ export default function Page() {
   const [activeTypes, setActiveTypes] = useState<Set<VenueType>>(() => new Set(['bar', 'food', 'hotel', 'other']));
   const activeColorsRef = useRef<Set<PriceTier>>(new Set(['green', 'yellow', 'red']));
   const activeTypesRef = useRef<Set<VenueType>>(new Set(['bar', 'food', 'hotel', 'other']));
+  const [filterOpenNow, setFilterOpenNow] = useState(false);
+  const filterOpenNowRef = useRef(false);
   const [thresholds, setThresholds] = useState<Thresholds>({ low: 35, high: 45 });
   const thresholdsRef = useRef<Thresholds>({ low: 35, high: 45 });
 
@@ -607,6 +614,7 @@ export default function Page() {
     prices = latestPricesRef.current,
     colors = activeColorsRef.current,
     types = activeTypesRef.current,
+    openNow = filterOpenNowRef.current,
   ) {
     const map = mapRef.current;
     if (!map) return;
@@ -621,7 +629,7 @@ export default function Page() {
     const t = calcThresholds(visiblePrices);
     thresholdsRef.current = t;
     setThresholds(t);
-    renderMarkers(applyFilters(bars, prices, colors, types, t), prices, t);
+    renderMarkers(applyFilters(bars, prices, colors, types, t, openNow), prices, t);
   }
 
   function toggleColor(tier: PriceTier) {
@@ -631,6 +639,13 @@ export default function Page() {
     setActiveColors(next);
     refreshMap(barsRef.current, latestPricesRef.current, next, activeTypesRef.current);
     window.history.replaceState(null, '', buildBarUrl(selectedBarId, next));
+  }
+
+  function toggleOpenNow() {
+    const next = !filterOpenNowRef.current;
+    filterOpenNowRef.current = next;
+    setFilterOpenNow(next);
+    refreshMap(barsRef.current, latestPricesRef.current, activeColorsRef.current, activeTypesRef.current, next);
   }
 
   function toggleType(vtype: VenueType) {
@@ -989,6 +1004,14 @@ export default function Page() {
               <span className={styles.filterBtnRange}>{range}</span>
             </button>
           ))}
+          <div style={{ width: 1, background: '#d1d5db', alignSelf: 'stretch', margin: '2px 0' }} />
+          <button
+            className={`${styles.filterBtn} ${filterOpenNow ? styles.filterBtnOn : styles.filterBtnOff}`}
+            style={filterOpenNow ? { background: '#D1FAE5', borderColor: '#6EE7B7', color: '#111827' } : undefined}
+            onClick={toggleOpenNow}
+          >
+            <span className={styles.filterBtnLabel}>Öppet nu</span>
+          </button>
         </div>
 
         <div style={{ position: 'absolute', right: 12, bottom: 12, zIndex: 30 }}>
