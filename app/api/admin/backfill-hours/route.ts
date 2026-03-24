@@ -1,5 +1,5 @@
 export const runtime = 'nodejs';
-export const maxDuration = 300; // 5 min (Vercel pro/hobby limit)
+export const maxDuration = 300;
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
@@ -9,10 +9,22 @@ const OVERPASS_ENDPOINTS = [
   'https://overpass.kumi.systems/api/interpreter',
 ];
 
+type OsmElement = {
+  lat?: number;
+  lon?: number;
+  center?: { lat: number; lon: number };
+  tags?: { opening_hours?: string; name?: string };
+};
+
+function dist(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const dlat = lat1 - lat2, dlon = lon1 - lon2;
+  return dlat * dlat + dlon * dlon;
+}
+
 async function fetchOpeningHours(lat: number, lng: number): Promise<string | null> {
   const amenity = 'bar|pub|restaurant|cafe|nightclub|fast_food|theatre|cinema|arts_centre';
   const tourism = 'hotel|hostel|motel|guest_house';
-  const q = `[out:json][timeout:8];(node["opening_hours"]["amenity"~"${amenity}"](around:150,${lat},${lng});node["opening_hours"]["tourism"~"${tourism}"](around:150,${lat},${lng});way["opening_hours"]["amenity"~"${amenity}"](around:150,${lat},${lng});way["opening_hours"]["tourism"~"${tourism}"](around:150,${lat},${lng}););out body 1;`;
+  const q = `[out:json][timeout:8];(node["opening_hours"]["amenity"~"${amenity}"](around:100,${lat},${lng});node["opening_hours"]["tourism"~"${tourism}"](around:100,${lat},${lng});way["opening_hours"]["amenity"~"${amenity}"](around:100,${lat},${lng});way["opening_hours"]["tourism"~"${tourism}"](around:100,${lat},${lng}););out center;`;
   for (const endpoint of OVERPASS_ENDPOINTS) {
     try {
       const controller = new AbortController();
@@ -25,10 +37,21 @@ async function fetchOpeningHours(lat: number, lng: number): Promise<string | nul
       });
       clearTimeout(timer);
       if (!r.ok) continue;
-      const data = await r.json() as { elements?: { tags?: { opening_hours?: string } }[] };
-      const oh = data?.elements?.[0]?.tags?.opening_hours;
-      if (oh) return oh;
-      return null; // got a valid response but no opening_hours — no point trying next mirror
+      const data = await r.json() as { elements?: OsmElement[] };
+      const elements = data?.elements ?? [];
+      if (!elements.length) return null;
+
+      let best: OsmElement | null = null;
+      let bestDist = Infinity;
+      for (const el of elements) {
+        if (!el.tags?.opening_hours) continue;
+        const elLat = el.lat ?? el.center?.lat;
+        const elLon = el.lon ?? el.center?.lon;
+        if (elLat == null || elLon == null) continue;
+        const d = dist(lat, lng, elLat, elLon);
+        if (d < bestDist) { bestDist = d; best = el; }
+      }
+      return best?.tags?.opening_hours ?? null;
     } catch {
       // try next endpoint
     }
@@ -50,12 +73,11 @@ export async function POST(req: Request) {
   const supabase = createClient(url, serviceKey, { auth: { persistSession: false } });
   const body = await req.json().catch(() => ({})) as { demo?: boolean; limit?: number; force?: boolean };
   const demo = Boolean(body.demo);
-  const force = Boolean(body.force); // if true, re-fetch even bars that already have opening_hours
+  const force = Boolean(body.force);
   const limit = Math.min(Number(body.limit) || 100, 200);
   const barsTable = demo ? 'bars_demo' : 'bars';
   const pricesTable = demo ? 'prices_demo' : 'prices';
 
-  // Get all bars that have a price or no_na_beer flag
   const { data: barsWithPrices } = await supabase
     .from(pricesTable)
     .select('bar_id')
@@ -92,7 +114,7 @@ export async function POST(req: Request) {
       notFound++;
       results.push({ id: bar.id, name: bar.name, oh: null });
     }
-    await sleep(1500); // be polite to Overpass
+    await sleep(1500);
   }
 
   return NextResponse.json({ ok: true, total: candidates.length, updated, notFound, results });

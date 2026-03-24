@@ -12,10 +12,24 @@ const OVERPASS_ENDPOINTS = [
   'https://overpass.kumi.systems/api/interpreter',
 ];
 
-async function fetchOpeningHours(lat: number, lng: number): Promise<string | null> {
+type OsmElement = {
+  type: string;
+  lat?: number;
+  lon?: number;
+  center?: { lat: number; lon: number };
+  tags?: { opening_hours?: string; name?: string };
+};
+
+function dist(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const dlat = lat1 - lat2, dlon = lon1 - lon2;
+  return dlat * dlat + dlon * dlon; // squared distance, sufficient for sorting
+}
+
+async function fetchOpeningHours(lat: number, lng: number): Promise<{ oh: string; name: string | null } | null> {
   const amenity = 'bar|pub|restaurant|cafe|nightclub|fast_food|theatre|cinema|arts_centre';
   const tourism = 'hotel|hostel|motel|guest_house';
-  const q = `[out:json][timeout:8];(node["opening_hours"]["amenity"~"${amenity}"](around:150,${lat},${lng});node["opening_hours"]["tourism"~"${tourism}"](around:150,${lat},${lng});way["opening_hours"]["amenity"~"${amenity}"](around:150,${lat},${lng});way["opening_hours"]["tourism"~"${tourism}"](around:150,${lat},${lng}););out body 1;`;
+  // Use "out center" so ways also get a coordinate, allowing distance sorting
+  const q = `[out:json][timeout:8];(node["opening_hours"]["amenity"~"${amenity}"](around:100,${lat},${lng});node["opening_hours"]["tourism"~"${tourism}"](around:100,${lat},${lng});way["opening_hours"]["amenity"~"${amenity}"](around:100,${lat},${lng});way["opening_hours"]["tourism"~"${tourism}"](around:100,${lat},${lng}););out center;`;
   for (const endpoint of OVERPASS_ENDPOINTS) {
     try {
       const controller = new AbortController();
@@ -28,9 +42,24 @@ async function fetchOpeningHours(lat: number, lng: number): Promise<string | nul
       });
       clearTimeout(timer);
       if (!r.ok) continue;
-      const data = await r.json() as { elements?: { tags?: { opening_hours?: string } }[] };
-      const oh = data?.elements?.[0]?.tags?.opening_hours;
-      if (oh) return oh;
+      const data = await r.json() as { elements?: OsmElement[] };
+      const elements = data?.elements ?? [];
+      if (!elements.length) return null;
+
+      // Pick the closest element by actual coordinates
+      let best: OsmElement | null = null;
+      let bestDist = Infinity;
+      for (const el of elements) {
+        if (!el.tags?.opening_hours) continue;
+        const elLat = el.lat ?? el.center?.lat;
+        const elLon = el.lon ?? el.center?.lon;
+        if (elLat == null || elLon == null) continue;
+        const d = dist(lat, lng, elLat, elLon);
+        if (d < bestDist) { bestDist = d; best = el; }
+      }
+      if (!best?.tags?.opening_hours) return null;
+      console.log(`[OH] matched OSM: "${best.tags.name}" oh="${best.tags.opening_hours}" dist≈${Math.round(Math.sqrt(bestDist) * 111000)}m`);
+      return { oh: best.tags.opening_hours, name: best.tags.name ?? null };
     } catch {
       // try next endpoint
     }
@@ -60,8 +89,9 @@ export async function PATCH(req: Request) {
       const lat = body.lat ? Number(body.lat) : null;
       const lng = body.lng ? Number(body.lng) : null;
       if (!lat || !lng) return jsonError('opening_hours eller lat/lng saknas.');
-      opening_hours = await fetchOpeningHours(lat, lng);
-      if (!opening_hours) return NextResponse.json({ ok: false, error: 'Ingen öppettidsdata hittad' });
+      const result = await fetchOpeningHours(lat, lng);
+      if (!result) return NextResponse.json({ ok: false, error: 'Ingen öppettidsdata hittad' });
+      opening_hours = result.oh;
     }
 
     // If bar_id provided, save to DB; otherwise just return the value (fetch-only mode)
