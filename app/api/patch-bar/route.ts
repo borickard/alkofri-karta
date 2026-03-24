@@ -20,15 +20,38 @@ type OsmElement = {
   tags?: { opening_hours?: string; name?: string };
 };
 
-function dist(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const dlat = lat1 - lat2, dlon = lon1 - lon2;
-  return dlat * dlat + dlon * dlon; // squared distance, sufficient for sorting
+function metersDist(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const dlat = (lat1 - lat2) * 111000;
+  const dlon = (lon1 - lon2) * 111000 * Math.cos((lat1 * Math.PI) / 180);
+  return Math.sqrt(dlat * dlat + dlon * dlon);
 }
 
-async function fetchOpeningHours(lat: number, lng: number): Promise<{ oh: string; name: string | null } | null> {
+// Normalize name for comparison: lowercase, strip diacritics, remove punctuation,
+// strip common venue words that don't help differentiate
+function nameTokens(name: string): Set<string> {
+  const stopwords = new Set(['restaurant', 'restaurang', 'bar', 'pub', 'cafe', 'café',
+    'kafe', 'kafé', 'bistro', 'hotel', 'hotell', 'the', 'och', 'and', 'ab', 'i', 'på']);
+  const normalized = name
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')  // strip diacritics
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(w => w.length > 1 && !stopwords.has(w));
+  return new Set(normalized);
+}
+
+function nameSimilarity(a: string, b: string): number {
+  const ta = nameTokens(a);
+  const tb = nameTokens(b);
+  if (ta.size === 0 || tb.size === 0) return 0;
+  let intersection = 0;
+  for (const t of ta) if (tb.has(t)) intersection++;
+  return intersection / Math.max(ta.size, tb.size); // overlap coefficient (lenient)
+}
+
+async function fetchOpeningHours(lat: number, lng: number, barName?: string): Promise<{ oh: string; name: string | null } | null> {
   const amenity = 'bar|pub|restaurant|cafe|nightclub|fast_food|theatre|cinema|arts_centre';
   const tourism = 'hotel|hostel|motel|guest_house';
-  // Use "out center" so ways also get a coordinate, allowing distance sorting
   const q = `[out:json][timeout:8];(node["opening_hours"]["amenity"~"${amenity}"](around:100,${lat},${lng});node["opening_hours"]["tourism"~"${tourism}"](around:100,${lat},${lng});way["opening_hours"]["amenity"~"${amenity}"](around:100,${lat},${lng});way["opening_hours"]["tourism"~"${tourism}"](around:100,${lat},${lng}););out center;`;
   for (const endpoint of OVERPASS_ENDPOINTS) {
     try {
@@ -43,23 +66,38 @@ async function fetchOpeningHours(lat: number, lng: number): Promise<{ oh: string
       clearTimeout(timer);
       if (!r.ok) continue;
       const data = await r.json() as { elements?: OsmElement[] };
-      const elements = data?.elements ?? [];
+      const elements = (data?.elements ?? []).filter(el => el.tags?.opening_hours);
       if (!elements.length) return null;
 
-      // Pick the closest element by actual coordinates
+      // Score each candidate: name similarity (primary) + proximity (tiebreaker)
       let best: OsmElement | null = null;
-      let bestDist = Infinity;
+      let bestScore = -Infinity;
       for (const el of elements) {
-        if (!el.tags?.opening_hours) continue;
         const elLat = el.lat ?? el.center?.lat;
         const elLon = el.lon ?? el.center?.lon;
         if (elLat == null || elLon == null) continue;
-        const d = dist(lat, lng, elLat, elLon);
-        if (d < bestDist) { bestDist = d; best = el; }
+        const distM = metersDist(lat, lng, elLat, elLon);
+        const sim = barName ? nameSimilarity(barName, el.tags?.name ?? '') : 0;
+        // Name similarity dominates; distance breaks ties. Penalise > 30m.
+        const score = sim * 1000 - distM;
+        if (score > bestScore) { bestScore = score; best = el; }
       }
+
       if (!best?.tags?.opening_hours) return null;
-      console.log(`[OH] matched OSM: "${best.tags.name}" oh="${best.tags.opening_hours}" dist≈${Math.round(Math.sqrt(bestDist) * 111000)}m`);
-      return { oh: best.tags.opening_hours, name: best.tags.name ?? null };
+
+      const matchedName = best.tags.name ?? null;
+      const sim = barName ? nameSimilarity(barName, matchedName ?? '') : 1;
+
+      // Reject if multiple candidates exist and none share a name token with our bar
+      if (barName && elements.length > 1 && sim === 0) {
+        console.log(`[OH] rejected: no name match for "${barName}" among ${elements.length} candidates (best: "${matchedName}")`);
+        return null;
+      }
+
+      const elLat = best.lat ?? best.center?.lat ?? lat;
+      const elLon = best.lon ?? best.center?.lon ?? lng;
+      console.log(`[OH] matched "${matchedName}" sim=${sim.toFixed(2)} dist≈${Math.round(metersDist(lat, lng, elLat, elLon))}m oh="${best.tags.opening_hours}"`);
+      return { oh: best.tags.opening_hours, name: matchedName };
     } catch {
       // try next endpoint
     }
@@ -89,8 +127,9 @@ export async function PATCH(req: Request) {
     if (!opening_hours) {
       const lat = body.lat ? Number(body.lat) : null;
       const lng = body.lng ? Number(body.lng) : null;
+      const barName = body.name ? String(body.name) : undefined;
       if (!lat || !lng) return jsonError('opening_hours eller lat/lng saknas.');
-      const result = await fetchOpeningHours(lat, lng);
+      const result = await fetchOpeningHours(lat, lng, barName);
       if (!result) return NextResponse.json({ ok: false, error: 'Ingen öppettidsdata hittad' });
       opening_hours = result.oh;
       osm_name = result.name;

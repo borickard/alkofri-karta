@@ -16,12 +16,30 @@ type OsmElement = {
   tags?: { opening_hours?: string; name?: string };
 };
 
-function dist(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const dlat = lat1 - lat2, dlon = lon1 - lon2;
-  return dlat * dlat + dlon * dlon;
+
+function metersDist(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const dlat = (lat1 - lat2) * 111000;
+  const dlon = (lon1 - lon2) * 111000 * Math.cos((lat1 * Math.PI) / 180);
+  return Math.sqrt(dlat * dlat + dlon * dlon);
 }
 
-async function fetchOpeningHours(lat: number, lng: number): Promise<string | null> {
+function nameTokens(name: string): Set<string> {
+  const stopwords = new Set(['restaurant', 'restaurang', 'bar', 'pub', 'cafe', 'café',
+    'kafe', 'kafé', 'bistro', 'hotel', 'hotell', 'the', 'och', 'and', 'ab', 'i', 'på']);
+  return new Set(name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ').split(/\s+/)
+    .filter(w => w.length > 1 && !stopwords.has(w)));
+}
+
+function nameSimilarity(a: string, b: string): number {
+  const ta = nameTokens(a), tb = nameTokens(b);
+  if (!ta.size || !tb.size) return 0;
+  let n = 0;
+  for (const t of ta) if (tb.has(t)) n++;
+  return n / Math.max(ta.size, tb.size);
+}
+
+async function fetchOpeningHours(lat: number, lng: number, barName?: string): Promise<string | null> {
   const amenity = 'bar|pub|restaurant|cafe|nightclub|fast_food|theatre|cinema|arts_centre';
   const tourism = 'hotel|hostel|motel|guest_house';
   const q = `[out:json][timeout:8];(node["opening_hours"]["amenity"~"${amenity}"](around:100,${lat},${lng});node["opening_hours"]["tourism"~"${tourism}"](around:100,${lat},${lng});way["opening_hours"]["amenity"~"${amenity}"](around:100,${lat},${lng});way["opening_hours"]["tourism"~"${tourism}"](around:100,${lat},${lng}););out center;`;
@@ -38,20 +56,24 @@ async function fetchOpeningHours(lat: number, lng: number): Promise<string | nul
       clearTimeout(timer);
       if (!r.ok) continue;
       const data = await r.json() as { elements?: OsmElement[] };
-      const elements = data?.elements ?? [];
+      const elements = (data?.elements ?? []).filter(el => el.tags?.opening_hours);
       if (!elements.length) return null;
 
       let best: OsmElement | null = null;
-      let bestDist = Infinity;
+      let bestScore = -Infinity;
       for (const el of elements) {
-        if (!el.tags?.opening_hours) continue;
         const elLat = el.lat ?? el.center?.lat;
         const elLon = el.lon ?? el.center?.lon;
         if (elLat == null || elLon == null) continue;
-        const d = dist(lat, lng, elLat, elLon);
-        if (d < bestDist) { bestDist = d; best = el; }
+        const distM = metersDist(lat, lng, elLat, elLon);
+        const sim = barName ? nameSimilarity(barName, el.tags?.name ?? '') : 0;
+        const score = sim * 1000 - distM;
+        if (score > bestScore) { bestScore = score; best = el; }
       }
-      return best?.tags?.opening_hours ?? null;
+      if (!best?.tags?.opening_hours) return null;
+      const sim = barName ? nameSimilarity(barName, best.tags.name ?? '') : 1;
+      if (barName && elements.length > 1 && sim === 0) return null;
+      return best.tags.opening_hours;
     } catch {
       // try next endpoint
     }
@@ -105,7 +127,7 @@ export async function POST(req: Request) {
   const results: { id: number; name: string; oh: string | null }[] = [];
 
   for (const bar of candidates) {
-    const oh = await fetchOpeningHours(bar.lat, bar.lng);
+    const oh = await fetchOpeningHours(bar.lat, bar.lng, bar.name);
     if (oh) {
       await supabase.from(barsTable).update({ opening_hours: oh }).eq('id', bar.id);
       updated++;

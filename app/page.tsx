@@ -372,13 +372,13 @@ export default function Page() {
   const [thresholds, setThresholds] = useState<Thresholds>({ low: 35, high: 45 });
   const thresholdsRef = useRef<Thresholds>({ low: 35, high: 45 });
 
-  function fetchAndStoreOH(lat: number, lng: number, barId: number | null, onResult: (oh: string | null) => void) {
+  function fetchAndStoreOH(lat: number, lng: number, barId: number | null, name: string | null | undefined, onResult: (oh: string | null) => void) {
     setOhLoading(true);
     setOhChecked(false);
     fetch('/api/patch-bar', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ lat, lng, ...(barId ? { bar_id: barId, demo: isDemoMode } : {}) }),
+      body: JSON.stringify({ lat, lng, ...(name ? { name } : {}), ...(barId ? { bar_id: barId, demo: isDemoMode } : {}) }),
     }).then(r => r.json()).then(data => {
       // Only mark as checked (and show "ej tillgängliga") when the request succeeded
       // — even if no opening_hours was found in OSM
@@ -552,7 +552,7 @@ export default function Page() {
         focusPoint(b.lng, b.lat);
 
         if (!b.opening_hours) {
-          fetchAndStoreOH(b.lat, b.lng, b.id, oh => {
+          fetchAndStoreOH(b.lat, b.lng, b.id, b.name, oh => {
             if (oh) setBars(prev => prev.map(bar => bar.id === b.id ? { ...bar, opening_hours: oh } : bar));
           });
         } else {
@@ -865,7 +865,7 @@ export default function Page() {
       focusPoint(cand.lng, cand.lat);
 
       // Fetch opening_hours for candidate (MapTiler doesn't include it in tiles)
-      fetchAndStoreOH(cand.lat, cand.lng, null, oh => {
+      fetchAndStoreOH(cand.lat, cand.lng, null, cand.name, oh => {
         if (oh) setCandidate(prev => prev ? { ...prev, opening_hours: oh } : prev);
       });
     };
