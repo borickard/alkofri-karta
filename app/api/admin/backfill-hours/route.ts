@@ -71,8 +71,9 @@ async function fetchOpeningHours(lat: number, lng: number, barName?: string): Pr
         if (score > bestScore) { bestScore = score; best = el; }
       }
       if (!best?.tags?.opening_hours) return null;
-      const sim = barName ? nameSimilarity(barName, best.tags.name ?? '') : 1;
-      if (barName && elements.length > 1 && sim === 0) return null;
+      const matchedName = best.tags.name ?? null;
+      const sim = barName ? nameSimilarity(barName, matchedName ?? '') : 1;
+      if (barName && matchedName && sim === 0) return null;
       return best.tags.opening_hours;
     } catch {
       // try next endpoint

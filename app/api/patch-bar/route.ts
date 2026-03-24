@@ -88,9 +88,10 @@ async function fetchOpeningHours(lat: number, lng: number, barName?: string): Pr
       const matchedName = best.tags.name ?? null;
       const sim = barName ? nameSimilarity(barName, matchedName ?? '') : 1;
 
-      // Reject if multiple candidates exist and none share a name token with our bar
-      if (barName && elements.length > 1 && sim === 0) {
-        console.log(`[OH] rejected: no name match for "${barName}" among ${elements.length} candidates (best: "${matchedName}")`);
+      // Reject if OSM has a name and zero tokens overlap with our bar name
+      // (catches wrong-venue matches like offices, pharmacies, etc.)
+      if (barName && matchedName && sim === 0) {
+        console.log(`[OH] rejected: sim=0 for "${barName}" vs OSM "${matchedName}"`);
         return null;
       }
 
