@@ -1497,7 +1497,7 @@ export default function Page() {
                 onClick={undoLast}
                 style={{ width: '100%', color: '#6b7280', fontSize: 13 }}
               >
-                ↩ Ångra
+                {'↩\uFE0E'} Ångra
               </button>
             )}
           </div>
