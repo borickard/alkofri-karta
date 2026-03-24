@@ -242,32 +242,78 @@ function ohDayActive(days: string, todayJS: number): boolean {
   return false;
 }
 
-function isOpenNow(oh: string | null | undefined): boolean | null {
+type OpenStatus =
+  | { open: true }
+  | { open: false; opensLaterToday: boolean; nextDay: number | null; nextTime: string | null }
+  | null;
+
+const SV_DAYS = ['söndag', 'måndag', 'tisdag', 'onsdag', 'torsdag', 'fredag', 'lördag'];
+
+function minToStr(min: number): string {
+  return `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+}
+
+function getOpenStatus(oh: string | null | undefined): OpenStatus {
   if (!oh) return null;
   const s = oh.trim();
-  if (s === '24/7') return true;
+  if (s === '24/7') return { open: true };
+
   const now = new Date();
   const todayJS = now.getDay();
   const nowMin = now.getHours() * 60 + now.getMinutes();
-  let matched = false;
-  let open = false;
+
+  type Rule = { days: string; times: { start: number; end: number }[] };
+  const rules: Rule[] = [];
   for (const rule of s.split(';').map(r => r.trim()).filter(Boolean)) {
     const m = rule.match(/^([A-Za-z,\-]+)\s+(.+)$/);
     if (!m) continue;
-    if (!ohDayActive(m[1], todayJS)) continue;
-    matched = true;
+    const times: { start: number; end: number }[] = [];
     for (const tr of m[2].split(',')) {
       const tm = tr.trim().match(/^(\d{1,2}:\d{2})-(\d{1,2}:\d{2})$/);
-      if (!tm) continue;
-      const start = ohToMinutes(tm[1]);
-      const end = ohToMinutes(tm[2]);
+      if (tm) times.push({ start: ohToMinutes(tm[1]), end: ohToMinutes(tm[2]) });
+    }
+    if (times.length) rules.push({ days: m[1], times });
+  }
+  if (!rules.length) return null;
+
+  // Check if open now
+  for (const rule of rules) {
+    if (!ohDayActive(rule.days, todayJS)) continue;
+    for (const { start, end } of rule.times) {
       if (end <= start ? (nowMin >= start || nowMin < end) : (nowMin >= start && nowMin < end)) {
-        open = true;
-        break;
+        return { open: true };
       }
     }
   }
-  return matched ? open : null;
+
+  // Find next opening slot within 7 days
+  for (let daysAhead = 0; daysAhead <= 6; daysAhead++) {
+    const dayJS = (todayJS + daysAhead) % 7;
+    let earliest: number | null = null;
+    for (const rule of rules) {
+      if (!ohDayActive(rule.days, dayJS)) continue;
+      for (const { start } of rule.times) {
+        if (daysAhead === 0 && start <= nowMin) continue; // already passed today
+        if (earliest === null || start < earliest) earliest = start;
+      }
+    }
+    if (earliest !== null) {
+      return {
+        open: false,
+        opensLaterToday: daysAhead === 0,
+        nextDay: daysAhead === 0 ? null : dayJS,
+        nextTime: minToStr(earliest),
+      };
+    }
+  }
+
+  return { open: false, opensLaterToday: false, nextDay: null, nextTime: null };
+}
+
+function isOpenNow(oh: string | null | undefined): boolean | null {
+  const s = getOpenStatus(oh);
+  if (s === null) return null;
+  return s.open;
 }
 
 export default function Page() {
@@ -967,15 +1013,26 @@ export default function Page() {
                 {selectedBar ? selectedBar.name : candidate?.name}
                 {(() => {
                   const oh = selectedBar?.opening_hours ?? candidate?.opening_hours ?? null;
-                  const status = isOpenNow(oh);
                   if (ohLoading) return <div style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#9ca3af', marginTop: 2 }}>Hämtar öppettider…</div>;
-                  if (status !== null) return (
-                    <div style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600, color: status ? '#059669' : '#DC2626', marginTop: 2 }}>
-                      {status ? '● Öppet nu' : '● Stängt'}
-                    </div>
-                  );
                   if (ohChecked && !oh) return <div style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#9ca3af', marginTop: 2 }}>Öppettider ej tillgängliga</div>;
-                  return null;
+                  const status = getOpenStatus(oh);
+                  if (!status) return null;
+                  if (status.open) return (
+                    <div style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600, color: '#059669', marginTop: 2 }}>● Öppet nu</div>
+                  );
+                  let closedLabel = 'Stängt';
+                  if (status.nextTime) {
+                    if (status.opensLaterToday) {
+                      closedLabel = `Stängt, öppnar kl ${status.nextTime}`;
+                    } else if (status.nextDay !== null) {
+                      const todayJS = new Date().getDay();
+                      const tomorrowJS = (todayJS + 1) % 7;
+                      closedLabel = status.nextDay === tomorrowJS
+                        ? `Stängt, öppnar imorgon kl ${status.nextTime}`
+                        : `Stängt, öppnar på ${SV_DAYS[status.nextDay]} kl ${status.nextTime}`;
+                    }
+                  }
+                  return <div style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600, color: '#DC2626', marginTop: 2 }}>● {closedLabel}</div>;
                 })()}
               </div>
               <button
