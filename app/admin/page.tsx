@@ -296,18 +296,19 @@ export default function AdminPage() {
               {loading ? 'Laddar…' : 'Uppdatera'}
             </button>
 
-            <div style={{ flex: 1 }} />
-
-            <button style={btn('light')} onClick={backfillHours} disabled={loading}>
-              Fyll på öppettider
-            </button>
-
             <button style={btn('light')} onClick={bulkDeleteLastDays}>
               Rensa {days} dagar
             </button>
             <button style={btn('danger')} onClick={bulkDeleteAll}>
               Rensa alla
             </button>
+          </div>
+
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #e5e7eb' }}>
+            <button style={btn('light')} onClick={backfillHours} disabled={loading}>
+              Fyll på öppettider från OSM
+            </button>
+            <span style={{ ...muted, marginLeft: 10 }}>Hämtar opening_hours för locations som saknar det</span>
           </div>
 
           {status && (
