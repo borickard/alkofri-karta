@@ -475,40 +475,24 @@ export default function Page() {
         loadHistory(b.id).catch(console.error);
         focusPoint(b.lng, b.lat);
 
-        // Backfill opening_hours via Overpass API for bars that don't have it yet
+        // Backfill opening_hours via server → Overpass for bars that don't have it yet
         console.log('[OH] bar clicked, opening_hours =', b.opening_hours, 'bar id =', b.id);
         if (!b.opening_hours) {
-          const q = `[out:json][timeout:10];(node["opening_hours"](around:50,${b.lat},${b.lng});way["opening_hours"](around:50,${b.lat},${b.lng}););out body 1;`;
-          console.log('[OH] querying Overpass for', b.name, b.lat, b.lng);
-          fetch('https://overpass-api.de/api/interpreter', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: `data=${encodeURIComponent(q)}`,
-          })
-            .then(r => {
-              if (!r.ok) { console.log('[OH] Overpass HTTP error:', r.status); return null; }
-              return r.json();
-            })
-            .then((data: { elements?: { tags?: { opening_hours?: string } }[] } | null) => {
-              if (!data) return;
-              console.log('[OH] Overpass response elements:', data?.elements?.length, data?.elements?.[0]?.tags);
-              const oh = data?.elements?.[0]?.tags?.opening_hours;
-              if (!oh) { console.log('[OH] no opening_hours found in Overpass result'); return; }
-              console.log('[OH] found opening_hours:', oh, '→ isOpenNow:', isOpenNow(oh));
-              fetch('/api/patch-bar', {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ bar_id: b.id, opening_hours: oh, demo: isDemoMode }),
-              }).then(r => r.json()).then(patchData => {
-                console.log('[OH] patch-bar result:', patchData);
-                if (patchData.ok) {
-                  setBars(prev => prev.map(bar =>
-                    bar.id === b.id ? { ...bar, opening_hours: oh } : bar
-                  ));
-                }
-              }).catch(console.error);
-            })
-            .catch(e => console.error('[OH] Overpass fetch failed:', e));
+          console.log('[OH] fetching via /api/patch-bar for', b.name);
+          fetch('/api/patch-bar', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ bar_id: b.id, lat: b.lat, lng: b.lng, demo: isDemoMode }),
+          }).then(r => r.json()).then(patchData => {
+            console.log('[OH] patch-bar result:', patchData);
+            if (patchData.ok && patchData.opening_hours) {
+              const oh = patchData.opening_hours as string;
+              console.log('[OH] got opening_hours:', oh, '→ isOpenNow:', isOpenNow(oh));
+              setBars(prev => prev.map(bar =>
+                bar.id === b.id ? { ...bar, opening_hours: oh } : bar
+              ));
+            }
+          }).catch(console.error);
         } else {
           console.log('[OH] already has opening_hours:', b.opening_hours, '→ isOpenNow:', isOpenNow(b.opening_hours));
         }
