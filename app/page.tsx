@@ -1061,6 +1061,11 @@ export default function Page() {
                   }
                   return <div style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600, color: '#DC2626', marginTop: 2 }}>● {closedLabel}</div>;
                 })()}
+                {(selectedBar?.opening_hours ?? candidate?.opening_hours) && (
+                  <div style={{ fontFamily: 'var(--font-body)', fontSize: 10, color: '#9ca3af', marginTop: 2, wordBreak: 'break-all' }}>
+                    {selectedBar?.opening_hours ?? candidate?.opening_hours}
+                  </div>
+                )}
               </div>
               <button
                 onClick={closePanel}
