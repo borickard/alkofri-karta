@@ -440,13 +440,13 @@
 
 .siteTitle {
   font-family: var(--font-heading);
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 400;
   color: #111827;
   line-height: 1.25;
   white-space: normal;
   max-width: 160px;
-  padding-top: 5px;
+  padding-top: 3px;
 }
 
 .hamburgerBtn {
@@ -481,6 +481,7 @@
     font-size: 28px;
     line-height: 1.25;
     max-width: 280px;
+    padding-top: 5px;
   }
 }
 
