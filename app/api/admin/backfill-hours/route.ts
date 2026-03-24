@@ -16,6 +16,16 @@ type OsmElement = {
   tags?: { opening_hours?: string; name?: string };
 };
 
+type GooglePeriod = {
+  open: { day: number; hour: number; minute: number };
+  close?: { day: number; hour: number; minute: number };
+};
+
+type GooglePlace = {
+  displayName?: { text?: string };
+  regularOpeningHours?: { periods?: GooglePeriod[] };
+  location?: { latitude?: number; longitude?: number };
+};
 
 function metersDist(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const dlat = (lat1 - lat2) * 111000;
@@ -39,7 +49,97 @@ function nameSimilarity(a: string, b: string): number {
   return n / Math.max(ta.size, tb.size);
 }
 
-async function fetchOpeningHours(lat: number, lng: number, barName?: string): Promise<string | null> {
+const OSM_DAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+function pad(n: number) { return String(n).padStart(2, '0'); }
+function monFirst(d: number): number { return d === 0 ? 7 : d; }
+
+function googlePeriodsToOsm(periods: GooglePeriod[]): string | null {
+  const valid = periods.filter(p => p.open && p.close);
+  if (!valid.length) return null;
+
+  const byTime: Record<string, number[]> = {};
+  for (const p of valid) {
+    const timeStr = `${pad(p.open.hour)}:${pad(p.open.minute)}-${pad(p.close!.hour)}:${pad(p.close!.minute)}`;
+    if (!byTime[timeStr]) byTime[timeStr] = [];
+    byTime[timeStr].push(p.open.day);
+  }
+
+  const parts: string[] = [];
+  for (const [timeStr, days] of Object.entries(byTime)) {
+    days.sort((a, b) => monFirst(a) - monFirst(b));
+    const ranges: string[] = [];
+    let i = 0;
+    while (i < days.length) {
+      let j = i;
+      while (j + 1 < days.length && monFirst(days[j + 1]) - monFirst(days[j]) === 1) j++;
+      ranges.push(j > i ? `${OSM_DAYS[days[i]]}-${OSM_DAYS[days[j]]}` : OSM_DAYS[days[i]]);
+      i = j + 1;
+    }
+    parts.push(`${ranges.join(',')} ${timeStr}`);
+  }
+  return parts.join('; ');
+}
+
+async function fetchOpeningHoursGoogle(
+  lat: number,
+  lng: number,
+  barName?: string,
+): Promise<string | null> {
+  const apiKey = process.env.GOOGLE_PLACES_KEY;
+  if (!apiKey) return null;
+
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10000);
+    const r = await fetch('https://places.googleapis.com/v1/places:searchNearby', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': apiKey,
+        'X-Goog-FieldMask': 'places.displayName,places.regularOpeningHours,places.location',
+      },
+      body: JSON.stringify({
+        locationRestriction: {
+          circle: { center: { latitude: lat, longitude: lng }, radius: 100 },
+        },
+        includedTypes: ['bar', 'restaurant', 'cafe', 'night_club', 'hotel'],
+        maxResultCount: 10,
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+
+    if (!r.ok) return null;
+
+    const data = await r.json() as { places?: GooglePlace[] };
+    const places = (data?.places ?? []).filter(p => p.regularOpeningHours?.periods?.length);
+    if (!places.length) return null;
+
+    let best: GooglePlace | null = null;
+    let bestScore = -Infinity;
+    for (const place of places) {
+      const pLat = place.location?.latitude;
+      const pLon = place.location?.longitude;
+      if (pLat == null || pLon == null) continue;
+      const distM = metersDist(lat, lng, pLat, pLon);
+      const sim = barName ? nameSimilarity(barName, place.displayName?.text ?? '') : 0;
+      const score = sim * 1000 - distM;
+      if (score > bestScore) { bestScore = score; best = place; }
+    }
+
+    if (!best?.regularOpeningHours?.periods) return null;
+
+    const matchedName = best.displayName?.text ?? null;
+    const sim = barName ? nameSimilarity(barName, matchedName ?? '') : 1;
+    if (barName && matchedName && sim === 0) return null;
+
+    return googlePeriodsToOsm(best.regularOpeningHours.periods);
+  } catch {
+    return null;
+  }
+}
+
+async function fetchOpeningHoursOsm(lat: number, lng: number, barName?: string): Promise<string | null> {
   const amenity = 'bar|pub|restaurant|cafe|nightclub|fast_food|theatre|cinema|arts_centre';
   const tourism = 'hotel|hostel|motel|guest_house';
   const q = `[out:json][timeout:8];(node["opening_hours"]["amenity"~"${amenity}"](around:100,${lat},${lng});node["opening_hours"]["tourism"~"${tourism}"](around:100,${lat},${lng});way["opening_hours"]["amenity"~"${amenity}"](around:100,${lat},${lng});way["opening_hours"]["tourism"~"${tourism}"](around:100,${lat},${lng}););out center;`;
@@ -80,6 +180,12 @@ async function fetchOpeningHours(lat: number, lng: number, barName?: string): Pr
     }
   }
   return null;
+}
+
+async function fetchOpeningHours(lat: number, lng: number, barName?: string): Promise<string | null> {
+  const googleResult = await fetchOpeningHoursGoogle(lat, lng, barName);
+  if (googleResult) return googleResult;
+  return fetchOpeningHoursOsm(lat, lng, barName);
 }
 
 function sleep(ms: number) {
@@ -137,7 +243,7 @@ export async function POST(req: Request) {
       notFound++;
       results.push({ id: bar.id, name: bar.name, oh: null });
     }
-    await sleep(1500);
+    await sleep(300);
   }
 
   return NextResponse.json({ ok: true, total: candidates.length, updated, notFound, results });

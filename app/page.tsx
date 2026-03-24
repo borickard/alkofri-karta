@@ -272,6 +272,7 @@ function getOpenStatus(oh: string | null | undefined): OpenStatus {
   for (const rule of s.split(';').map(r => r.trim()).filter(Boolean)) {
     const m = rule.match(/^([A-Za-z,\-]+)\s+(.+)$/);
     if (!m) continue;
+    if (/\bPH\b/.test(m[1])) continue; // skip public holiday rules
     const times: { start: number; end: number }[] = [];
     for (const tr of m[2].split(',')) {
       const tm = tr.trim().match(/^(\d{1,2}:\d{2})-(\d{1,2}:\d{2})$/);
@@ -356,6 +357,7 @@ export default function Page() {
   const [ohLoading, setOhLoading] = useState(false);
   const [ohChecked, setOhChecked] = useState(false);
   const [ohSourceName, setOhSourceName] = useState<string | null>(null);
+  const [ohSource, setOhSource] = useState<'google' | 'osm' | null>(null);
 
   const [activeColors, setActiveColors] = useState<Set<PriceTier>>(() => {
     const param = searchParams.get('colors');
@@ -370,6 +372,7 @@ export default function Page() {
   const [filterOpenNow, setFilterOpenNow] = useState(() => searchParams.has('open'));
   const filterOpenNowRef = useRef(searchParams.has('open'));
   const [thresholds, setThresholds] = useState<Thresholds>({ low: 35, high: 45 });
+  const [visiblePriceCount, setVisiblePriceCount] = useState(0);
   const thresholdsRef = useRef<Thresholds>({ low: 35, high: 45 });
 
   function fetchAndStoreOH(lat: number, lng: number, barId: number | null, name: string | null | undefined, onResult: (oh: string | null) => void) {
@@ -384,6 +387,7 @@ export default function Page() {
       // — even if no opening_hours was found in OSM
       onResult(data.ok && data.opening_hours ? String(data.opening_hours) : null);
       setOhSourceName(data.osm_name ?? null);
+      setOhSource(data.source ?? null);
       setOhChecked(true);
     }).catch(() => {
       // Network/timeout error — don't show "ej tillgängliga", just stop the spinner
@@ -541,6 +545,10 @@ export default function Page() {
       }, { passive: true });
       el.addEventListener('click', (ev) => {
         ev.stopPropagation();
+        setOhChecked(false);
+        setOhLoading(false);
+        setOhSourceName(null);
+        setOhSource(null);
         setCandidate(null);
         setSelectedBarId(b.id);
         setPanelOpen(true);
@@ -631,6 +639,7 @@ export default function Page() {
     const t = calcThresholds(visiblePrices);
     thresholdsRef.current = t;
     setThresholds(t);
+    setVisiblePriceCount(visiblePrices.length);
     renderMarkers(applyFilters(bars, prices, colors, types, t, openNow), prices, t);
   }
 
@@ -719,6 +728,7 @@ export default function Page() {
     await loadBarsAndPrices();
     if (j.bar_id) {
       setSelectedBarId(j.bar_id);
+      window.history.replaceState(null, '', buildBarUrl(j.bar_id));
       await loadHistory(j.bar_id);
       setPriceView('confirm');
     }
@@ -754,7 +764,10 @@ export default function Page() {
     setStatus('');
     setPriceInput('');
     await loadBarsAndPrices();
-    if (j.bar_id) setSelectedBarId(j.bar_id);
+    if (j.bar_id) {
+      setSelectedBarId(j.bar_id);
+      window.history.replaceState(null, '', buildBarUrl(j.bar_id));
+    }
     setCandidate(null);
   }
 
@@ -796,6 +809,7 @@ export default function Page() {
     setOhLoading(false);
     setOhChecked(false);
     setOhSourceName(null);
+    setOhSource(null);
   }
 
   function onPanelKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -858,6 +872,10 @@ export default function Page() {
     const onClick = (e: MapMouseEvent) => {
       const cand = pickCandidateFromClick(map, e);
       if (!cand) { closePanel(); return; }
+      setOhChecked(false);
+      setOhLoading(false);
+      setOhSourceName(null);
+      setOhSource(null);
       setSelectedBarId(null);
       setCandidate(cand);
       setPanelOpen(true);
@@ -867,10 +885,21 @@ export default function Page() {
       setPriceView('confirm');
       focusPoint(cand.lng, cand.lat);
 
-      // Fetch opening_hours for candidate (MapTiler doesn't include it in tiles)
-      fetchAndStoreOH(cand.lat, cand.lng, null, cand.name, oh => {
-        if (oh) setCandidate(prev => prev ? { ...prev, opening_hours: oh } : prev);
-      });
+      // Register bar immediately so it gets an id and becomes linkable, then fetch OH
+      fetch('/api/register-bar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...cand, demo: isDemoMode }),
+      }).then(r => r.json()).then(j => {
+        if (!j.ok || !j.bar_id) return;
+        setSelectedBarId(j.bar_id);
+        setCandidate(null);
+        window.history.replaceState(null, '', buildBarUrl(j.bar_id));
+        loadBarsAndPrices().catch(console.error);
+        fetchAndStoreOH(cand.lat, cand.lng, j.bar_id, cand.name, oh => {
+          if (oh) setBars(prev => prev.map(b => b.id === j.bar_id ? { ...b, opening_hours: oh } : b));
+        });
+      }).catch(console.error);
     };
 
     map.on('zoom', onZoom);
@@ -910,6 +939,13 @@ export default function Page() {
             setPriceView('confirm');
             await loadHistory(bar.id);
             focusPoint(bar.lng, bar.lat);
+            if (!bar.opening_hours) {
+              fetchAndStoreOH(bar.lat, bar.lng, bar.id, bar.name, oh => {
+                if (oh) setBars(prev => prev.map(b => b.id === bar.id ? { ...b, opening_hours: oh } : b));
+              });
+            } else {
+              setOhChecked(true);
+            }
           }
         }
       } catch (err: unknown) {
@@ -999,17 +1035,21 @@ export default function Page() {
             { tier: 'green' as PriceTier, bg: '#D1FAE5', border: '#6EE7B7', label: 'Billigt', range: `≤${thresholds.low} kr` },
             { tier: 'yellow' as PriceTier, bg: '#FEF3C7', border: '#FCD34D', label: 'Medel', range: `${thresholds.low + 1}–${thresholds.high} kr` },
             { tier: 'red' as PriceTier, bg: '#FEE2E2', border: '#FCA5A5', label: 'Dyrt', range: `>${thresholds.high} kr` },
-          ]).map(({ tier, bg, border, label, range }) => (
-            <button
-              key={tier}
-              className={`${styles.filterBtn} ${activeColors.has(tier) ? styles.filterBtnOn : styles.filterBtnOff}`}
-              style={activeColors.has(tier) ? { background: bg, borderColor: border, color: '#111827' } : undefined}
-              onClick={() => toggleColor(tier)}
-            >
-              <span className={styles.filterBtnLabel}>{label}</span>
-              <span className={styles.filterBtnRange}>{range}</span>
-            </button>
-          ))}
+          ]).map(({ tier, bg, border, label, range }) => {
+            const few = visiblePriceCount < 3;
+            return (
+              <button
+                key={tier}
+                className={`${styles.filterBtn} ${!few && activeColors.has(tier) ? styles.filterBtnOn : styles.filterBtnOff}`}
+                style={!few && activeColors.has(tier) ? { background: bg, borderColor: border, color: '#111827' } : undefined}
+                onClick={() => !few && toggleColor(tier)}
+                disabled={few}
+              >
+                <span className={styles.filterBtnLabel}>{label}</span>
+                <span className={styles.filterBtnRange}>{few ? '–' : range}</span>
+              </button>
+            );
+          })}
           <div style={{ width: 1, background: '#d1d5db', alignSelf: 'stretch', margin: '2px 0' }} />
           <button
             className={`${styles.filterBtn} ${filterOpenNow ? styles.filterBtnOn : styles.filterBtnOff}`}
@@ -1067,12 +1107,6 @@ export default function Page() {
                   }
                   return <div style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600, color: '#DC2626', marginTop: 2 }}>● {closedLabel}</div>;
                 })()}
-                {(selectedBar?.opening_hours ?? candidate?.opening_hours) && (
-                  <div style={{ fontFamily: 'var(--font-body)', fontSize: 10, color: '#9ca3af', marginTop: 2, wordBreak: 'break-all' }}>
-                    {selectedBar?.opening_hours ?? candidate?.opening_hours}
-                    {ohSourceName && <> · OSM: <em>{ohSourceName}</em></>}
-                  </div>
-                )}
               </div>
               <button
                 onClick={closePanel}

@@ -301,7 +301,6 @@
   width: min(540px, calc(100vw - 24px));
   background: var(--bg);
   border: var(--frame);
-  box-shadow: var(--shadow);
   border-radius: 18px;
   padding: 16px;
   display: flex;
@@ -385,6 +384,11 @@
 
 .filterBtn:active {
   background: #e5e7eb;
+}
+
+.filterBtn:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 
