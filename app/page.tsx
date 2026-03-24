@@ -367,8 +367,8 @@ export default function Page() {
   const [activeTypes, setActiveTypes] = useState<Set<VenueType>>(() => new Set(['bar', 'food', 'hotel', 'other']));
   const activeColorsRef = useRef<Set<PriceTier>>(new Set(['green', 'yellow', 'red']));
   const activeTypesRef = useRef<Set<VenueType>>(new Set(['bar', 'food', 'hotel', 'other']));
-  const [filterOpenNow, setFilterOpenNow] = useState(false);
-  const filterOpenNowRef = useRef(false);
+  const [filterOpenNow, setFilterOpenNow] = useState(() => searchParams.has('open'));
+  const filterOpenNowRef = useRef(searchParams.has('open'));
   const [thresholds, setThresholds] = useState<Thresholds>({ low: 35, high: 45 });
   const thresholdsRef = useRef<Thresholds>({ low: 35, high: 45 });
 
@@ -648,6 +648,7 @@ export default function Page() {
     filterOpenNowRef.current = next;
     setFilterOpenNow(next);
     refreshMap(barsRef.current, latestPricesRef.current, activeColorsRef.current, activeTypesRef.current, next);
+    window.history.replaceState(null, '', buildBarUrl(selectedBarId, activeColorsRef.current, next));
   }
 
   function toggleType(vtype: VenueType) {
@@ -772,12 +773,14 @@ export default function Page() {
     await loadHistory(selectedBar.id);
   }
 
-  function buildBarUrl(barId: number | null, colors?: Set<PriceTier>) {
+  function buildBarUrl(barId: number | null, colors?: Set<PriceTier>, openNow?: boolean) {
     const c = colors ?? activeColorsRef.current;
+    const on = openNow ?? filterOpenNowRef.current;
     const parts: string[] = [];
     if (isDemoMode) parts.push('demo');
     if (barId !== null) parts.push(`bar=${barId}`);
     if (c.size < 3) parts.push(`colors=${(['green', 'yellow', 'red'] as PriceTier[]).filter(t => c.has(t)).join(',')}`);
+    if (on) parts.push('open');
     return parts.length ? `?${parts.join('&')}` : window.location.pathname;
   }
 
