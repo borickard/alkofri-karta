@@ -381,6 +381,7 @@ export default function Page() {
   const filterOpenNowRef = useRef(searchParams.has('open'));
   const [thresholds, setThresholds] = useState<Thresholds>({ low: 35, high: 45 });
   const [visiblePriceCount, setVisiblePriceCount] = useState(0);
+  const [tierRanges, setTierRanges] = useState<Record<PriceTier, { min: number; max: number } | null>>({ green: null, yellow: null, red: null });
   const thresholdsRef = useRef<Thresholds>({ low: 35, high: 45 });
 
   function fetchAddress(lat: number, lng: number) {
@@ -662,6 +663,13 @@ export default function Page() {
     thresholdsRef.current = t;
     setThresholds(t);
     setVisiblePriceCount(visiblePrices.length);
+    const ranges: Record<PriceTier, { min: number; max: number } | null> = { green: null, yellow: null, red: null };
+    for (const p of visiblePrices) {
+      const tier = priceTierOf(p, t);
+      const r = ranges[tier];
+      ranges[tier] = r ? { min: Math.min(r.min, p), max: Math.max(r.max, p) } : { min: p, max: p };
+    }
+    setTierRanges(ranges);
     renderMarkers(applyFilters(bars, prices, colors, types, t, openNow), prices, t);
   }
 
@@ -1228,11 +1236,13 @@ export default function Page() {
         {/* Filter toolbar */}
         <div className={styles.filterBar}>
           {([
-            { tier: 'green' as PriceTier, bg: '#D1FAE5', border: '#6EE7B7', label: 'Billigt', range: `≤${thresholds.low} kr` },
-            { tier: 'yellow' as PriceTier, bg: '#FEF3C7', border: '#FCD34D', label: 'Medel', range: `${thresholds.low + 1}–${thresholds.high} kr` },
-            { tier: 'red' as PriceTier, bg: '#FEE2E2', border: '#FCA5A5', label: 'Dyrt', range: `>${thresholds.high} kr` },
-          ]).map(({ tier, bg, border, label, range }) => {
+            { tier: 'green' as PriceTier, bg: '#D1FAE5', border: '#6EE7B7', label: 'Billigt' },
+            { tier: 'yellow' as PriceTier, bg: '#FEF3C7', border: '#FCD34D', label: 'Medel' },
+            { tier: 'red' as PriceTier, bg: '#FEE2E2', border: '#FCA5A5', label: 'Dyrt' },
+          ]).map(({ tier, bg, border, label }) => {
             const few = visiblePriceCount < 3;
+            const r = tierRanges[tier];
+            const rangeLabel = r ? (r.min === r.max ? `${r.min} kr` : `${r.min}–${r.max} kr`) : '–';
             return (
               <button
                 key={tier}
@@ -1242,7 +1252,7 @@ export default function Page() {
                 disabled={few}
               >
                 <span className={styles.filterBtnLabel}>{label}</span>
-                <span className={styles.filterBtnRange}>{few ? '–' : range}</span>
+                <span className={styles.filterBtnRange}>{rangeLabel}</span>
               </button>
             );
           })}
