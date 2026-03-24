@@ -206,6 +206,26 @@ export default function AdminPage() {
     }
   }
 
+  async function backfillHours() {
+    if (!confirm('Hämta öppettider för alla locations utan opening_hours? Kan ta flera minuter.')) return;
+    setStatus('Hämtar öppettider… (detta tar ett tag)');
+    setLoading(true);
+    try {
+      const r = await fetch('/api/admin/backfill-hours', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ demo: isDemo, limit: 200 }),
+      });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error || 'Misslyckades');
+      setStatus(`Klart: ${j.updated} uppdaterade, ${j.notFound} saknade data (av ${j.total} locations).`);
+    } catch (e: unknown) {
+      setStatus(e instanceof Error ? e.message : 'Fel');
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function bulkDeleteLastDays() {
     if (!confirm(`Rensa priser från senaste ${days} dagar (soft delete)?`)) return;
     setStatus(`Rensar senaste ${days} dagar...`);
@@ -277,6 +297,10 @@ export default function AdminPage() {
             </button>
 
             <div style={{ flex: 1 }} />
+
+            <button style={btn('light')} onClick={backfillHours} disabled={loading}>
+              Fyll på öppettider
+            </button>
 
             <button style={btn('light')} onClick={bulkDeleteLastDays}>
               Rensa {days} dagar
