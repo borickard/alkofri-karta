@@ -446,6 +446,7 @@
   line-height: 1.25;
   white-space: normal;
   max-width: 160px;
+  padding-top: 5px;
 }
 
 .hamburgerBtn {
