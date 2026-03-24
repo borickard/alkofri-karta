@@ -346,6 +346,9 @@ export default function Page() {
 
   const [welcomeOpen, setWelcomeOpen] = useState(!searchParams.has('bar'));
   const [omOpen, setOmOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [selectedBarId, setSelectedBarId] = useState<number | null>(null);
   const selectedBar = useMemo(() => (selectedBarId ? bars.find(b => b.id === selectedBarId) ?? null : null), [bars, selectedBarId]);
   const [candidate, setCandidate] = useState<Candidate | null>(null);
@@ -358,6 +361,7 @@ export default function Page() {
   const [ohChecked, setOhChecked] = useState(false);
   const [ohSourceName, setOhSourceName] = useState<string | null>(null);
   const [ohSource, setOhSource] = useState<'google' | 'osm' | null>(null);
+  const [address, setAddress] = useState<string | null>(null);
 
   const [activeColors, setActiveColors] = useState<Set<PriceTier>>(() => {
     const param = searchParams.get('colors');
@@ -374,6 +378,17 @@ export default function Page() {
   const [thresholds, setThresholds] = useState<Thresholds>({ low: 35, high: 45 });
   const [visiblePriceCount, setVisiblePriceCount] = useState(0);
   const thresholdsRef = useRef<Thresholds>({ low: 35, high: 45 });
+
+  function fetchAddress(lat: number, lng: number) {
+    setAddress(null);
+    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`, {
+      headers: { 'Accept-Language': 'sv' },
+    }).then(r => r.json()).then((data: { address?: { road?: string; house_number?: string } }) => {
+      const road = data?.address?.road;
+      const num = data?.address?.house_number;
+      if (road) setAddress(num ? `${road} ${num}` : road);
+    }).catch(() => {});
+  }
 
   function fetchAndStoreOH(lat: number, lng: number, barId: number | null, name: string | null | undefined, onResult: (oh: string | null) => void) {
     setOhLoading(true);
@@ -549,6 +564,7 @@ export default function Page() {
         setOhLoading(false);
         setOhSourceName(null);
         setOhSource(null);
+        setAddress(null);
         setCandidate(null);
         setSelectedBarId(b.id);
         setPanelOpen(true);
@@ -558,6 +574,7 @@ export default function Page() {
         window.history.replaceState(null, '', buildBarUrl(b.id));
         loadHistory(b.id).catch(console.error);
         focusPoint(b.lng, b.lat);
+        fetchAddress(b.lat, b.lng);
 
         if (!b.opening_hours) {
           fetchAndStoreOH(b.lat, b.lng, b.id, b.name, oh => {
@@ -797,6 +814,42 @@ export default function Page() {
     return parts.length ? `?${parts.join('&')}` : window.location.pathname;
   }
 
+  function normalizeSearch(s: string) {
+    return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  }
+
+  const searchResults = searchQuery.trim().length > 0
+    ? bars.filter(b => normalizeSearch(b.name).includes(normalizeSearch(searchQuery.trim()))).slice(0, 8)
+    : [];
+
+  function openBarFromSearch(b: Bar) {
+    setSearchOpen(false);
+    setSearchQuery('');
+    setOhChecked(false);
+    setOhLoading(false);
+    setOhSourceName(null);
+    setOhSource(null);
+    setAddress(null);
+    setCandidate(null);
+    setSelectedBarId(b.id);
+    setPanelOpen(true);
+    setStatus('');
+    setHistory([]);
+    setPriceInput('');
+    setPriceView('confirm');
+    window.history.replaceState(null, '', buildBarUrl(b.id));
+    loadHistory(b.id).catch(console.error);
+    focusPoint(b.lng, b.lat);
+    fetchAddress(b.lat, b.lng);
+    if (!b.opening_hours) {
+      fetchAndStoreOH(b.lat, b.lng, b.id, b.name, oh => {
+        if (oh) setBars(prev => prev.map(bar => bar.id === b.id ? { ...bar, opening_hours: oh } : bar));
+      });
+    } else {
+      setOhChecked(true);
+    }
+  }
+
   function closePanel() {
     window.history.replaceState(null, '', buildBarUrl(null));
     setPanelOpen(false);
@@ -810,6 +863,7 @@ export default function Page() {
     setOhChecked(false);
     setOhSourceName(null);
     setOhSource(null);
+    setAddress(null);
   }
 
   function onPanelKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -876,6 +930,7 @@ export default function Page() {
       setOhLoading(false);
       setOhSourceName(null);
       setOhSource(null);
+      setAddress(null);
       setSelectedBarId(null);
       setCandidate(cand);
       setPanelOpen(true);
@@ -884,6 +939,7 @@ export default function Page() {
       setPriceInput('');
       setPriceView('confirm');
       focusPoint(cand.lng, cand.lat);
+      fetchAddress(cand.lat, cand.lng);
 
       // Register bar immediately so it gets an id and becomes linkable, then fetch OH
       fetch('/api/register-bar', {
@@ -939,6 +995,7 @@ export default function Page() {
             setPriceView('confirm');
             await loadHistory(bar.id);
             focusPoint(bar.lng, bar.lat);
+            fetchAddress(bar.lat, bar.lng);
             if (!bar.opening_hours) {
               fetchAndStoreOH(bar.lat, bar.lng, bar.id, bar.name, oh => {
                 if (oh) setBars(prev => prev.map(b => b.id === bar.id ? { ...b, opening_hours: oh } : b));
@@ -975,17 +1032,51 @@ export default function Page() {
           </a>
           <span className={styles.siteTitle}>Vad kostar nollan?</span>
         </div>
-        <button
-          className={styles.hamburgerBtn}
-          onClick={() => setOmOpen(true)}
-          aria-label="Om projektet"
-          title="Om projektet"
-        >
-          <span className={styles.hamburgerLine} />
-          <span className={styles.hamburgerLine} />
-          <span className={styles.hamburgerLine} />
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button
+            className={styles.searchBtn}
+            onClick={() => { setSearchOpen(v => !v); setSearchQuery(''); setTimeout(() => searchInputRef.current?.focus(), 50); }}
+            aria-label="Sök"
+            title="Sök"
+          >
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="8.5" cy="8.5" r="5.5"/><line x1="13" y1="13" x2="18" y2="18"/></svg>
+          </button>
+          <button
+            className={styles.hamburgerBtn}
+            onClick={() => setOmOpen(true)}
+            aria-label="Om projektet"
+            title="Om projektet"
+          >
+            <span className={styles.hamburgerLine} />
+            <span className={styles.hamburgerLine} />
+            <span className={styles.hamburgerLine} />
+          </button>
+        </div>
       </header>
+      {searchOpen && (
+        <div className={styles.searchBar}>
+          <input
+            ref={searchInputRef}
+            className={styles.searchInput}
+            placeholder="Sök ställe…"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Escape') { setSearchOpen(false); setSearchQuery(''); } }}
+          />
+          {searchResults.length > 0 && (
+            <ul className={styles.searchResults}>
+              {searchResults.map(b => (
+                <li key={b.id} className={styles.searchResultItem} onClick={() => openBarFromSearch(b)}>
+                  {b.name}
+                </li>
+              ))}
+            </ul>
+          )}
+          {searchQuery.trim().length > 0 && searchResults.length === 0 && (
+            <div className={styles.searchEmpty}>Inga resultat</div>
+          )}
+        </div>
+      )}
 
       <div className={styles.mapWrap}>
         <div ref={mapContainerRef} className={styles.map} />
@@ -1106,6 +1197,22 @@ export default function Page() {
                     }
                   }
                   return <div style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600, color: '#DC2626', marginTop: 2 }}>● {closedLabel}</div>;
+                })()}
+                {address && (() => {
+                  const lat = selectedBar?.lat ?? candidate?.lat;
+                  const lng = selectedBar?.lng ?? candidate?.lng;
+                  const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+                  return (
+                    <a
+                      href={mapsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#6b7280', marginTop: 2, display: 'inline-flex', alignItems: 'center', gap: 3, textDecoration: 'none' }}
+                    >
+                      {address}
+                      <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="#6b7280" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M5 2H2a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V7"/><path d="M8 1h3v3"/><line x1="11" y1="1" x2="5.5" y2="6.5"/></svg>
+                    </a>
+                  );
                 })()}
               </div>
               <button
