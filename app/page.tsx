@@ -303,6 +303,7 @@ export default function Page() {
   const [history, setHistory] = useState<LatestPrice[]>([]);
   const [priceView, setPriceView] = useState<'confirm' | 'edit'>('confirm');
   const [ohLoading, setOhLoading] = useState(false);
+  const [ohChecked, setOhChecked] = useState(false);
 
   const [activeColors, setActiveColors] = useState<Set<PriceTier>>(() => {
     const param = searchParams.get('colors');
@@ -316,6 +317,21 @@ export default function Page() {
   const activeTypesRef = useRef<Set<VenueType>>(new Set(['bar', 'food', 'hotel', 'other']));
   const [thresholds, setThresholds] = useState<Thresholds>({ low: 35, high: 45 });
   const thresholdsRef = useRef<Thresholds>({ low: 35, high: 45 });
+
+  function fetchAndStoreOH(lat: number, lng: number, barId: number | null, onResult: (oh: string | null) => void) {
+    setOhLoading(true);
+    setOhChecked(false);
+    fetch('/api/patch-bar', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lat, lng, ...(barId ? { bar_id: barId, demo: isDemoMode } : {}) }),
+    }).then(r => r.json()).then(data => {
+      onResult(data.ok && data.opening_hours ? String(data.opening_hours) : null);
+    }).catch(() => onResult(null)).finally(() => {
+      setOhLoading(false);
+      setOhChecked(true);
+    });
+  }
 
   async function loadBarsAndPrices() {
     console.log('loadBarsAndPrices, isDemoMode =', isDemoMode);
@@ -476,26 +492,13 @@ export default function Page() {
         loadHistory(b.id).catch(console.error);
         focusPoint(b.lng, b.lat);
 
-        // Backfill opening_hours via server → Overpass for bars that don't have it yet
-        console.log('[OH] bar clicked, opening_hours =', b.opening_hours, 'bar id =', b.id);
         if (!b.opening_hours) {
-          console.log('[OH] fetching via /api/patch-bar for', b.name);
-          fetch('/api/patch-bar', {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ bar_id: b.id, lat: b.lat, lng: b.lng, demo: isDemoMode }),
-          }).then(r => r.json()).then(patchData => {
-            console.log('[OH] patch-bar result:', patchData);
-            if (patchData.ok && patchData.opening_hours) {
-              const oh = patchData.opening_hours as string;
-              console.log('[OH] got opening_hours:', oh, '→ isOpenNow:', isOpenNow(oh));
-              setBars(prev => prev.map(bar =>
-                bar.id === b.id ? { ...bar, opening_hours: oh } : bar
-              ));
-            }
-          }).catch(console.error);
+          fetchAndStoreOH(b.lat, b.lng, b.id, oh => {
+            if (oh) setBars(prev => prev.map(bar => bar.id === b.id ? { ...bar, opening_hours: oh } : bar));
+          });
         } else {
-          console.log('[OH] already has opening_hours:', b.opening_hours, '→ isOpenNow:', isOpenNow(b.opening_hours));
+          setOhLoading(false);
+          setOhChecked(true);
         }
       });
     }
@@ -719,6 +722,8 @@ export default function Page() {
     setHistory([]);
     setPriceInput('');
     setPriceView('confirm');
+    setOhLoading(false);
+    setOhChecked(false);
   }
 
   function onPanelKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -791,18 +796,9 @@ export default function Page() {
       focusPoint(cand.lng, cand.lat);
 
       // Fetch opening_hours for candidate (MapTiler doesn't include it in tiles)
-      if (!cand.opening_hours) {
-        setOhLoading(true);
-        fetch('/api/patch-bar', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ lat: cand.lat, lng: cand.lng }),
-        }).then(r => r.json()).then(data => {
-          if (data.ok && data.opening_hours) {
-            setCandidate(prev => prev ? { ...prev, opening_hours: data.opening_hours } : prev);
-          }
-        }).catch(console.error).finally(() => setOhLoading(false));
-      }
+      fetchAndStoreOH(cand.lat, cand.lng, null, oh => {
+        if (oh) setCandidate(prev => prev ? { ...prev, opening_hours: oh } : prev);
+      });
     };
 
     map.on('zoom', onZoom);
@@ -971,15 +967,14 @@ export default function Page() {
                 {(() => {
                   const oh = selectedBar?.opening_hours ?? candidate?.opening_hours ?? null;
                   const status = isOpenNow(oh);
-                  if (ohLoading && !oh) {
-                    return <div style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#9ca3af', marginTop: 2 }}>Hämtar öppettider…</div>;
-                  }
-                  if (status === null) return null;
-                  return (
+                  if (ohLoading) return <div style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#9ca3af', marginTop: 2 }}>Hämtar öppettider…</div>;
+                  if (status !== null) return (
                     <div style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600, color: status ? '#059669' : '#DC2626', marginTop: 2 }}>
                       {status ? '● Öppet nu' : '● Stängt'}
                     </div>
                   );
+                  if (ohChecked && !oh) return <div style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#9ca3af', marginTop: 2 }}>Öppettider ej tillgängliga</div>;
+                  return null;
                 })()}
               </div>
               <button
