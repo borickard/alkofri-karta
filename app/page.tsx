@@ -1433,9 +1433,10 @@ export default function Page() {
                       Inga priser rapporterade än.
                     </div>
                   )}
-                  <div className={styles.fieldRow}>
+                  <div className={styles.fieldRow} style={{ flexWrap: 'nowrap', width: '100%' }}>
                     <input
                       className={styles.input}
+                      style={{ flex: 1, width: 'auto', minWidth: 0 }}
                       inputMode="numeric"
                       placeholder="Pris (10–150 kr)"
                       value={priceInput}
