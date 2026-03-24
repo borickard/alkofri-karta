@@ -206,15 +206,17 @@ export default function AdminPage() {
     }
   }
 
-  async function backfillHours() {
-    if (!confirm('Hämta öppettider för alla locations utan opening_hours? Kan ta flera minuter.')) return;
+  async function backfillHours(force = false) {
+    if (!confirm(force
+      ? 'Hämta öppettider för ALLA locations (skriver över befintlig data)? Kan ta flera minuter.'
+      : 'Hämta öppettider för locations som saknar det? Kan ta flera minuter.')) return;
     setStatus('Hämtar öppettider… (detta tar ett tag)');
     setLoading(true);
     try {
       const r = await fetch('/api/admin/backfill-hours', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ demo: isDemo, limit: 200 }),
+        body: JSON.stringify({ demo: isDemo, limit: 200, force }),
       });
       const j = await r.json();
       if (!j.ok) throw new Error(j.error || 'Misslyckades');
@@ -304,11 +306,14 @@ export default function AdminPage() {
             </button>
           </div>
 
-          <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #e5e7eb' }}>
-            <button style={btn('light')} onClick={backfillHours} disabled={loading}>
-              Fyll på öppettider från OSM
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #e5e7eb', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <button style={btn('light')} onClick={() => backfillHours(false)} disabled={loading}>
+              Fyll på öppettider (saknade)
             </button>
-            <span style={{ ...muted, marginLeft: 10 }}>Hämtar opening_hours för locations som saknar det</span>
+            <button style={btn('light')} onClick={() => backfillHours(true)} disabled={loading}>
+              Uppdatera alla öppettider
+            </button>
+            <span style={muted}>Hämtar från OSM/Overpass</span>
           </div>
 
           {status && (

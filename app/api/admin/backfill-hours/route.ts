@@ -48,13 +48,14 @@ export async function POST(req: Request) {
   }
 
   const supabase = createClient(url, serviceKey, { auth: { persistSession: false } });
-  const body = await req.json().catch(() => ({})) as { demo?: boolean; limit?: number };
+  const body = await req.json().catch(() => ({})) as { demo?: boolean; limit?: number; force?: boolean };
   const demo = Boolean(body.demo);
+  const force = Boolean(body.force); // if true, re-fetch even bars that already have opening_hours
   const limit = Math.min(Number(body.limit) || 100, 200);
   const barsTable = demo ? 'bars_demo' : 'bars';
   const pricesTable = demo ? 'prices_demo' : 'prices';
 
-  // Get all bars without opening_hours that have a price or no_na_beer flag
+  // Get all bars that have a price or no_na_beer flag
   const { data: barsWithPrices } = await supabase
     .from(pricesTable)
     .select('bar_id')
@@ -62,11 +63,14 @@ export async function POST(req: Request) {
 
   const barIdsWithPrices = new Set((barsWithPrices ?? []).map((r: { bar_id: number }) => r.bar_id));
 
-  const { data: bars, error } = await supabase
+  const query = supabase
     .from(barsTable)
     .select('id,name,lat,lng,no_na_beer,opening_hours')
-    .is('opening_hours', null)
     .limit(limit);
+
+  if (!force) query.is('opening_hours', null);
+
+  const { data: bars, error } = await query;
 
   if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
 
