@@ -360,6 +360,7 @@ export default function Page() {
   const [status, setStatus] = useState('');
   const [history, setHistory] = useState<LatestPrice[]>([]);
   const [priceView, setPriceView] = useState<'confirm' | 'edit'>('confirm');
+  const [undoAction, setUndoAction] = useState<{ type: 'price'; price_id: number; bar_id: number } | { type: 'no_na'; bar_id: number } | null>(null);
   const [ohLoading, setOhLoading] = useState(false);
   const [ohChecked, setOhChecked] = useState(false);
   const [ohSourceName, setOhSourceName] = useState<string | null>(null);
@@ -569,6 +570,7 @@ export default function Page() {
         setOhSource(null);
         setAddress(null);
         setCandidate(null);
+        setUndoAction(null);
         setSelectedBarId(b.id);
         setPanelOpen(true);
         setStatus('');
@@ -726,6 +728,7 @@ export default function Page() {
     if (!j.ok) { setStatus(`Fel: ${j.error || 'okänt fel'}`); return; }
     setStatus('');
     setPriceInput('');
+    setUndoAction({ type: 'price', price_id: j.price.id, bar_id: selectedBar.id });
     await loadBarsAndPrices();
     await loadHistory(selectedBar.id);
     setPriceView('confirm');
@@ -747,6 +750,7 @@ export default function Page() {
     setPriceInput('');
     await loadBarsAndPrices();
     if (j.bar_id) {
+      setUndoAction({ type: 'price', price_id: j.price.id, bar_id: j.bar_id });
       setSelectedBarId(j.bar_id);
       window.history.replaceState(null, '', buildBarUrl(j.bar_id));
       await loadHistory(j.bar_id);
@@ -765,8 +769,9 @@ export default function Page() {
     });
     const j = await r.json();
     if (!j.ok) { setStatus(`Fel: ${j.error || 'okänt fel'}`); return; }
-    setStatus('Sparat.');
+    setStatus('');
     setPriceInput('');
+    setUndoAction({ type: 'no_na', bar_id: selectedBar.id });
     await loadBarsAndPrices();
     await loadHistory(selectedBar.id);
   }
@@ -785,10 +790,31 @@ export default function Page() {
     setPriceInput('');
     await loadBarsAndPrices();
     if (j.bar_id) {
+      setUndoAction({ type: 'no_na', bar_id: j.bar_id });
       setSelectedBarId(j.bar_id);
       window.history.replaceState(null, '', buildBarUrl(j.bar_id));
     }
     setCandidate(null);
+  }
+
+  async function undoLast() {
+    if (!undoAction) return;
+    setUndoAction(null);
+    const endpoint = undoAction.type === 'price' ? '/api/undo-price' : '/api/undo-no-na';
+    const body = undoAction.type === 'price'
+      ? { price_id: undoAction.price_id, demo: isDemoMode }
+      : { bar_id: undoAction.bar_id, demo: isDemoMode };
+    const r = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const j = await r.json();
+    if (!j.ok) { setStatus(`Ångra misslyckades: ${j.error}`); return; }
+    await loadBarsAndPrices();
+    const barId = undoAction.bar_id;
+    await loadHistory(barId);
+    setPriceView('confirm');
   }
 
   async function reportWrongPrice() {
@@ -869,6 +895,7 @@ export default function Page() {
       setOhSource(null);
       setAddress(place.address);
       setCandidate(null);
+      setUndoAction(null);
       setSelectedBarId(j.bar_id);
       setPanelOpen(true);
       setStatus('');
@@ -900,6 +927,7 @@ export default function Page() {
     setHistory([]);
     setPriceInput('');
     setPriceView('confirm');
+    setUndoAction(null);
     window.history.replaceState(null, '', buildBarUrl(b.id));
     loadHistory(b.id).catch(console.error);
     focusPoint(b.lng, b.lat);
@@ -922,6 +950,7 @@ export default function Page() {
     setHistory([]);
     setPriceInput('');
     setPriceView('confirm');
+    setUndoAction(null);
     setOhLoading(false);
     setOhChecked(false);
     setOhSourceName(null);
@@ -994,6 +1023,7 @@ export default function Page() {
       setOhSourceName(null);
       setOhSource(null);
       setAddress(null);
+      setUndoAction(null);
       setSelectedBarId(null);
       setCandidate(cand);
       setPanelOpen(true);
@@ -1448,6 +1478,16 @@ export default function Page() {
                 style={{ width: '100%', textAlign: 'left' }}
               >
                 ✕ Alkoholfri öl saknas här
+              </button>
+            )}
+
+            {undoAction && (
+              <button
+                className={styles.btn}
+                onClick={undoLast}
+                style={{ width: '100%', color: '#6b7280', fontSize: 13 }}
+              >
+                ↩ Ångra
               </button>
             )}
           </div>
