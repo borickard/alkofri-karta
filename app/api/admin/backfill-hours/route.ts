@@ -10,7 +10,7 @@ const OVERPASS_ENDPOINTS = [
 ];
 
 async function fetchOpeningHours(lat: number, lng: number): Promise<string | null> {
-  const q = `[out:json][timeout:8];(node["opening_hours"](around:60,${lat},${lng});way["opening_hours"](around:60,${lat},${lng}););out body 1;`;
+  const q = `[out:json][timeout:8];(node["opening_hours"](around:150,${lat},${lng});way["opening_hours"](around:150,${lat},${lng}););out body 1;`;
   for (const endpoint of OVERPASS_ENDPOINTS) {
     try {
       const controller = new AbortController();

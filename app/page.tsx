@@ -683,10 +683,11 @@ export default function Page() {
     });
     const j = await r.json();
     if (!j.ok) { setStatus(`Fel: ${j.error || 'okänt fel'}`); return; }
-    setStatus('Sparat.');
+    setStatus('');
     setPriceInput('');
-    setCandidate(null);
     await loadBarsAndPrices();
+    if (j.bar_id) setSelectedBarId(j.bar_id);
+    setCandidate(null);
   }
 
   async function reportWrongPrice() {
