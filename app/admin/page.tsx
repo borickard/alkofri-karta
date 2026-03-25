@@ -206,17 +206,15 @@ export default function AdminPage() {
     }
   }
 
-  async function backfillHours(force = false) {
-    if (!confirm(force
-      ? 'Hämta öppettider för ALLA locations (skriver över befintlig data)? Kan ta flera minuter.'
-      : 'Hämta öppettider för locations som saknar det? Kan ta flera minuter.')) return;
+  async function backfillHours() {
+    if (!confirm('Hämta öppettider för alla locations utan opening_hours? Kan ta flera minuter.')) return;
     setStatus('Hämtar öppettider… (detta tar ett tag)');
     setLoading(true);
     try {
       const r = await fetch('/api/admin/backfill-hours', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ demo: isDemo, limit: 200, force }),
+        body: JSON.stringify({ demo: isDemo, limit: 200 }),
       });
       const j = await r.json();
       if (!j.ok) throw new Error(j.error || 'Misslyckades');
@@ -306,14 +304,11 @@ export default function AdminPage() {
             </button>
           </div>
 
-          <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #e5e7eb', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <button style={btn('light')} onClick={() => backfillHours(false)} disabled={loading}>
-              Fyll på öppettider (saknade)
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #e5e7eb' }}>
+            <button style={btn('light')} onClick={backfillHours} disabled={loading}>
+              Fyll på öppettider från OSM
             </button>
-            <button style={btn('light')} onClick={() => backfillHours(true)} disabled={loading}>
-              Uppdatera alla öppettider
-            </button>
-            <span style={muted}>Hämtar från OSM/Overpass</span>
+            <span style={{ ...muted, marginLeft: 10 }}>Hämtar opening_hours för locations som saknar det</span>
           </div>
 
           {status && (
@@ -434,23 +429,6 @@ export default function AdminPage() {
                     <div style={{ marginTop: 8 }}>
                       <button style={btn('light')} onClick={() => deletePrice(a.price_id!)}>
                         Soft-delete price_id {a.price_id}
-                      </button>
-                    </div>
-                  )}
-                  {a.action === 'report_no_na' && a.bar_id && (
-                    <div style={{ marginTop: 8 }}>
-                      <button style={btn('light')} onClick={async () => {
-                        if (!confirm(`Ångra no-NA för bar_id ${a.bar_id}?`)) return;
-                        const r = await fetch('/api/admin/clear-no-na', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ bar_id: a.bar_id, demo: isDemo }),
-                        });
-                        const j = await r.json();
-                        if (j.ok) alert('no_na_beer återställt.');
-                        else alert('Fel: ' + j.error);
-                      }}>
-                        Ångra no-NA (bar_id {a.bar_id})
                       </button>
                     </div>
                   )}
