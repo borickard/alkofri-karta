@@ -651,10 +651,14 @@ export default function Page() {
   ) {
     const map = mapRef.current;
     if (!map) return;
-    const bounds = map.getBounds();
+    const center = map.getCenter();
+    const cosLat = Math.cos(center.lat * Math.PI / 180);
+    const RADIUS_M = 10_000;
     const visiblePrices: number[] = [];
     for (const b of bars) {
-      if (bounds.contains([b.lng, b.lat])) {
+      const dlat = (b.lat - center.lat) * 111_000;
+      const dlng = (b.lng - center.lng) * 111_000 * cosLat;
+      if (dlat * dlat + dlng * dlng <= RADIUS_M * RADIUS_M) {
         const lp = prices.get(b.id);
         if (lp) visiblePrices.push(lp.price_sek);
       }
