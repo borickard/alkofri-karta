@@ -412,7 +412,7 @@
 }
 
 .filterBtnLabel {
-  font-weight: 700;
+  font-weight: 400;
   font-size: 12px;
   line-height: 1;
 }
@@ -453,10 +453,17 @@
   font-size: 16px;
   font-weight: 400;
   color: #111827;
+  line-height: 1.5;
+  white-space: normal;
+}
+
+.siteSub {
+  font-family: var(--font-body);
+  font-weight: 400;
+  font-size: 13px;
+  color: #111827;
   line-height: 1.25;
   white-space: normal;
-  max-width: 160px;
-  padding-top: 3px;
 }
 
 .searchBtn {
@@ -587,10 +594,26 @@
   }
 
   .siteTitle {
-    font-size: 28px;
-    line-height: 1.25;
+    font-size: 22px;
+    line-height: 1.5;
     max-width: 280px;
-    padding-top: 5px;
+  }
+
+  .siteSub {
+    font-size: 16px;
+  }
+
+  .filterBtn {
+    padding: 10px 18px;
+  }
+
+  .filterBtnLabel {
+    font-size: 16px;
+    font-weight: 400;
+  }
+
+  .filterBtnRange {
+    font-size: 13px;
   }
 }
 

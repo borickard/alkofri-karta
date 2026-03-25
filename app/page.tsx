@@ -1133,7 +1133,10 @@ export default function Page() {
         <div className={styles.headerBrand}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/android-chrome-512x512.png" alt="" className={styles.iqLogo} />
-          <span className={styles.siteTitle}>Vad kostar nollan?</span>
+          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+            <span className={styles.siteTitle}>Vad kostar nollan?</span>
+            <span className={styles.siteSub}>Hitta billig alkoholfri öl på stan</span>
+          </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <button
