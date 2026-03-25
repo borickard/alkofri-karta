@@ -653,7 +653,7 @@ export default function Page() {
     if (!map) return;
     const center = map.getCenter();
     const cosLat = Math.cos(center.lat * Math.PI / 180);
-    const RADIUS_M = 10_000;
+    const RADIUS_M = 30_000;
     const visiblePrices: number[] = [];
     for (const b of bars) {
       const dlat = (b.lat - center.lat) * 111_000;
