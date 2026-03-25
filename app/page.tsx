@@ -1521,8 +1521,14 @@ export default function Page() {
                 maxWidth: 480,
                 padding: '40px 36px 32px',
                 borderRadius: 16,
+                position: 'relative',
               }}
             >
+              <button
+                onClick={() => setWelcomeOpen(false)}
+                aria-label="Stäng"
+                style={{ position: 'absolute', top: 40, right: 36, background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.6)', fontSize: 20, lineHeight: 1, padding: 0 }}
+              >✕</button>
               <div style={{
                 fontFamily: 'var(--font-heading)',
                 fontSize: 'clamp(28px, 5vw, 40px)',
