@@ -378,7 +378,6 @@ export default function Page() {
   const activeColorsRef = useRef<Set<PriceTier>>(new Set(['green', 'yellow', 'red']));
   const activeTypesRef = useRef<Set<VenueType>>(new Set(['bar', 'food', 'hotel', 'other']));
   const [filterOpenNow, setFilterOpenNow] = useState(() => searchParams.has('open'));
-  const [filterExpanded, setFilterExpanded] = useState(false);
   const filterOpenNowRef = useRef(searchParams.has('open'));
   const [thresholds, setThresholds] = useState<Thresholds>({ low: 35, high: 45 });
   const [visiblePriceCount, setVisiblePriceCount] = useState(0);
@@ -1201,6 +1200,23 @@ export default function Page() {
           ⌖
         </button>
 
+        <button
+          className={styles.locateBtn}
+          onClick={toggleOpenNow}
+          aria-label="Öppet nu"
+          title="Öppet nu"
+          style={{
+            top: 158,
+            ...(filterOpenNow ? { background: '#D1FAE5', borderColor: '#6EE7B7' } : {}),
+          }}
+        >
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <circle cx="9" cy="9" r="7.5" stroke="#111827" strokeWidth="1.5"/>
+            <line x1="9" y1="4.5" x2="9" y2="9" stroke="#111827" strokeWidth="1.5" strokeLinecap="round"/>
+            <line x1="9" y1="9" x2="12" y2="11.5" stroke="#111827" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
+        </button>
+
         {/* Admin + demo — left edge, vertically centered */}
         <div className={styles.leftPanel}>
           {process.env.NODE_ENV === 'development' && (
@@ -1233,7 +1249,7 @@ export default function Page() {
           )}
         </div>
 
-        {/* Filter module — collapsed: labels only. expanded: ranges + Öppet nu */}
+        {/* Filter toolbar */}
         <div className={styles.filterBar}>
           {([
             { tier: 'green' as PriceTier, bg: '#D1FAE5', border: '#6EE7B7', label: 'Billigt' },
@@ -1252,37 +1268,10 @@ export default function Page() {
                 disabled={few}
               >
                 <span className={styles.filterBtnLabel}>{label}</span>
-                {filterExpanded && <span className={styles.filterBtnRange}>{rangeLabel}</span>}
+                <span className={styles.filterBtnRange}>{rangeLabel}</span>
               </button>
             );
           })}
-          {filterExpanded && (
-            <>
-              <div style={{ width: 1, background: '#d1d5db', alignSelf: 'stretch', margin: '2px 0' }} />
-              <button
-                className={`${styles.filterBtn} ${filterOpenNow ? styles.filterBtnOn : styles.filterBtnOff}`}
-                style={filterOpenNow ? { background: '#D1FAE5', borderColor: '#6EE7B7', color: '#111827' } : { color: '#111827' }}
-                onClick={toggleOpenNow}
-              >
-                <span className={styles.filterBtnLabel}>Öppet</span>
-                <span className={styles.filterBtnRange} style={{ color: 'inherit', opacity: 1 }}>nu</span>
-              </button>
-            </>
-          )}
-          <div style={{ width: 1, background: '#d1d5db', alignSelf: 'stretch', margin: '2px 0' }} />
-          <button
-            className={styles.filterBtn}
-            onClick={() => setFilterExpanded(v => !v)}
-            aria-label={filterExpanded ? 'Minimera filter' : 'Expandera filter'}
-            style={{ padding: '5px 8px', color: '#6b7280' }}
-          >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <line x1="1" y1="4" x2="13" y2="4" stroke="#6b7280" strokeWidth="1.5" strokeLinecap="round"/>
-              <line x1="1" y1="10" x2="13" y2="10" stroke="#6b7280" strokeWidth="1.5" strokeLinecap="round"/>
-              <circle cx="4" cy="4" r="1.5" fill="#ffffff" stroke="#6b7280" strokeWidth="1.5"/>
-              <circle cx="10" cy="10" r="1.5" fill="#ffffff" stroke="#6b7280" strokeWidth="1.5"/>
-            </svg>
-          </button>
         </div>
 
 
