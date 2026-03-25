@@ -1131,13 +1131,18 @@ export default function Page() {
     <div className={styles.app}>
       <header className={styles.header}>
         <div className={styles.headerBrand}>
-          <a href="https://www.iq.se" target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center' }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/iq_logotype.svg" alt="IQ" className={styles.iqLogo} />
-          </a>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/android-chrome-512x512.png" alt="" className={styles.iqLogo} />
           <span className={styles.siteTitle}>Vad kostar nollan?</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button
+            className={`${styles.filterBtn} ${filterOpenNow ? styles.filterBtnOn : styles.filterBtnOff}`}
+            style={filterOpenNow ? { background: '#D1FAE5', borderColor: '#6EE7B7', color: '#111827', position: 'static' } : { position: 'static' }}
+            onClick={toggleOpenNow}
+          >
+            <span className={styles.filterBtnLabel}>Öppet nu</span>
+          </button>
           <button
             className={styles.searchBtn}
             onClick={() => { setSearchOpen(v => !v); setSearchQuery(''); setTimeout(() => searchInputRef.current?.focus(), 50); }}
@@ -1260,16 +1265,18 @@ export default function Page() {
               </button>
             );
           })}
-          <div style={{ width: 1, background: '#d1d5db', alignSelf: 'stretch', margin: '2px 0' }} />
-          <button
-            className={`${styles.filterBtn} ${filterOpenNow ? styles.filterBtnOn : styles.filterBtnOff}`}
-            style={filterOpenNow ? { background: '#D1FAE5', borderColor: '#6EE7B7', color: '#111827' } : undefined}
-            onClick={toggleOpenNow}
-          >
-            <span className={styles.filterBtnLabel}>Öppet nu</span>
-          </button>
         </div>
 
+
+        <a
+          href="https://www.iq.se"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ position: 'absolute', right: 12, bottom: 12, zIndex: 20, display: 'flex', alignItems: 'center' }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/iq_logotype.svg" alt="IQ" style={{ height: 46, width: 'auto', display: 'block' }} />
+        </a>
 
         {panelOpen ? (
           <div ref={panelRef} className={styles.panel}>
