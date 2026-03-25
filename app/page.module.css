@@ -323,10 +323,6 @@
 }
 
 .devBtn {
-  position: absolute;
-  left: 8px;
-  bottom: 64px;
-  z-index: 30;
   background: #ffffff;
   color: #111827;
   border: 1px solid #d1d5db;
@@ -341,7 +337,7 @@
   display: flex;
   align-items: center;
 }
-/* Filter toolbar — bottom center, always horizontal */
+/* Filter toolbar — bottom center */
 .filterBar {
   position: absolute;
   bottom: 12px;
@@ -358,6 +354,19 @@
   border-radius: 4px;
   padding: 4px;
   max-width: calc(100vw - 24px);
+}
+
+/* Left-side panel for admin/demo */
+.leftPanel {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
 }
 
 .filterBtn {

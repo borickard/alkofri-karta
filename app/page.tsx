@@ -378,6 +378,7 @@ export default function Page() {
   const activeColorsRef = useRef<Set<PriceTier>>(new Set(['green', 'yellow', 'red']));
   const activeTypesRef = useRef<Set<VenueType>>(new Set(['bar', 'food', 'hotel', 'other']));
   const [filterOpenNow, setFilterOpenNow] = useState(() => searchParams.has('open'));
+  const [filterExpanded, setFilterExpanded] = useState(false);
   const filterOpenNowRef = useRef(searchParams.has('open'));
   const [thresholds, setThresholds] = useState<Thresholds>({ low: 35, high: 45 });
   const [visiblePriceCount, setVisiblePriceCount] = useState(0);
@@ -1137,13 +1138,6 @@ export default function Page() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <button
-            className={`${styles.filterBtn} ${filterOpenNow ? styles.filterBtnOn : styles.filterBtnOff}`}
-            style={filterOpenNow ? { background: '#D1FAE5', borderColor: '#6EE7B7', color: '#111827', position: 'static' } : { position: 'static' }}
-            onClick={toggleOpenNow}
-          >
-            <span className={styles.filterBtnLabel}>Öppet nu</span>
-          </button>
-          <button
             className={styles.searchBtn}
             onClick={() => { setSearchOpen(v => !v); setSearchQuery(''); setTimeout(() => searchInputRef.current?.focus(), 50); }}
             aria-label="Sök"
@@ -1203,46 +1197,43 @@ export default function Page() {
       <div className={styles.mapWrap}>
         <div ref={mapContainerRef} className={styles.map} />
 
-        {isDemoMode && (
-          <div style={{
-            position: 'absolute',
-            bottom: 64,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 30,
-            background: '#ffffff',
-            border: '1px solid #d1d5db',
-            boxShadow: '0 0 0 1px rgba(0,0,0,0.06)',
-            borderRadius: 4,
-            padding: '0 10px 0 14px',
-            fontWeight: 600,
-            fontSize: 13,
-            color: '#374151',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            height: 36,
-            whiteSpace: 'nowrap',
-          }}>
-            Demo-läge
-            <button
-              onClick={() => { window.location.href = '/'; }}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: '#9ca3af', padding: '0 2px', lineHeight: 1, display: 'flex', alignItems: 'center' }}
-              aria-label="Avsluta demo-läge"
-              title="Avsluta demo-läge"
-            >✕</button>
-          </div>
-        )}
-
         <button className={styles.locateBtn} onClick={locateMe} aria-label="Hitta min plats" title="Hitta min plats">
           ⌖
         </button>
 
-        {process.env.NODE_ENV === 'development' && (
-          <a href="/admin" className={styles.devBtn}>Admin</a>
-        )}
+        {/* Admin + demo — left edge, vertically centered */}
+        <div className={styles.leftPanel}>
+          {process.env.NODE_ENV === 'development' && (
+            <a href="/admin" className={styles.devBtn}>Admin</a>
+          )}
+          {isDemoMode && (
+            <div style={{
+              background: '#ffffff',
+              border: '1px solid #d1d5db',
+              boxShadow: '0 0 0 1px rgba(0,0,0,0.06)',
+              borderRadius: 4,
+              padding: '0 10px 0 14px',
+              fontWeight: 600,
+              fontSize: 13,
+              color: '#374151',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              height: 44,
+              whiteSpace: 'nowrap',
+            }}>
+              Demo-läge
+              <button
+                onClick={() => { window.location.href = '/'; }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: '#9ca3af', padding: '0 2px', lineHeight: 1, display: 'flex', alignItems: 'center' }}
+                aria-label="Avsluta demo-läge"
+                title="Avsluta demo-läge"
+              >✕</button>
+            </div>
+          )}
+        </div>
 
-        {/* Filter toolbar */}
+        {/* Filter module — collapsed: labels only. expanded: ranges + Öppet nu */}
         <div className={styles.filterBar}>
           {([
             { tier: 'green' as PriceTier, bg: '#D1FAE5', border: '#6EE7B7', label: 'Billigt' },
@@ -1261,22 +1252,40 @@ export default function Page() {
                 disabled={few}
               >
                 <span className={styles.filterBtnLabel}>{label}</span>
-                <span className={styles.filterBtnRange}>{rangeLabel}</span>
+                {filterExpanded && <span className={styles.filterBtnRange}>{rangeLabel}</span>}
               </button>
             );
           })}
+          {filterExpanded && (
+            <>
+              <div style={{ width: 1, background: '#d1d5db', alignSelf: 'stretch', margin: '2px 0' }} />
+              <button
+                className={`${styles.filterBtn} ${filterOpenNow ? styles.filterBtnOn : styles.filterBtnOff}`}
+                style={filterOpenNow ? { background: '#D1FAE5', borderColor: '#6EE7B7', color: '#111827' } : { color: '#111827' }}
+                onClick={toggleOpenNow}
+              >
+                <span className={styles.filterBtnLabel}>Öppet</span>
+                <span className={styles.filterBtnRange} style={{ color: 'inherit', opacity: 1 }}>nu</span>
+              </button>
+            </>
+          )}
+          <div style={{ width: 1, background: '#d1d5db', alignSelf: 'stretch', margin: '2px 0' }} />
+          <button
+            className={styles.filterBtn}
+            onClick={() => setFilterExpanded(v => !v)}
+            aria-label={filterExpanded ? 'Minimera filter' : 'Expandera filter'}
+            style={{ padding: '5px 8px', color: '#6b7280' }}
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <line x1="1" y1="4" x2="13" y2="4" stroke="#6b7280" strokeWidth="1.5" strokeLinecap="round"/>
+              <line x1="1" y1="10" x2="13" y2="10" stroke="#6b7280" strokeWidth="1.5" strokeLinecap="round"/>
+              <circle cx="4" cy="4" r="1.5" fill="#ffffff" stroke="#6b7280" strokeWidth="1.5"/>
+              <circle cx="10" cy="10" r="1.5" fill="#ffffff" stroke="#6b7280" strokeWidth="1.5"/>
+            </svg>
+          </button>
         </div>
 
 
-        <a
-          href="https://www.iq.se"
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ position: 'absolute', right: 12, bottom: 12, zIndex: 20, display: 'flex', alignItems: 'center' }}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/iq_logotype.svg" alt="IQ" style={{ height: 46, width: 'auto', display: 'block' }} />
-        </a>
 
         {panelOpen ? (
           <div ref={panelRef} className={styles.panel}>
