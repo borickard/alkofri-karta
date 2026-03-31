@@ -44,6 +44,11 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const PRICE_TEXT_ZOOM = 13;
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function track(event: string, props?: Record<string, string>) {
+  try { (window as any).plausible?.(event, props ? { props } : undefined); } catch {}
+}
+
 function fmtShort(iso: string) {
   try {
     return new Date(iso).toLocaleString('sv-SE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
@@ -633,6 +638,7 @@ export default function Page() {
         setPriceInput('');
         setPriceView('confirm');
         window.history.replaceState(null, '', buildBarUrl(b.id));
+        track('Location Opened');
         loadHistory(b.id).catch(console.error);
         focusPoint(b.lng, b.lat);
         if (b.address) {
@@ -738,7 +744,8 @@ export default function Page() {
 
   function toggleColor(tier: PriceTier) {
     const next = new Set(activeColors);
-    if (next.has(tier)) next.delete(tier); else next.add(tier);
+    if (next.has(tier)) { next.delete(tier); track('Filter Toggled', { color: tier, action: 'off' }); }
+    else { next.add(tier); track('Filter Toggled', { color: tier, action: 'on' }); }
     activeColorsRef.current = next;
     setActiveColors(next);
     refreshMap(barsRef.current, latestPricesRef.current, next, activeTypesRef.current);
@@ -770,6 +777,7 @@ export default function Page() {
   }
 
   async function locateMe() {
+    track('Locate Me Used');
     const map = mapRef.current;
     if (!map) return;
     if (!navigator.geolocation) {
@@ -789,6 +797,7 @@ export default function Page() {
     if (!selectedBar) return;
     const p = parseInt(priceInput.trim(), 10);
     if (!Number.isFinite(p) || p < 10 || p > 150) { setStatus('Pris måste vara 10-150 kr.'); return; }
+    const hadPrice = latestPricesRef.current.has(selectedBar.id);
     setStatus('Sparar...');
     const r = await fetch('/api/price', {
       method: 'POST',
@@ -797,6 +806,7 @@ export default function Page() {
     });
     const j = await r.json();
     if (!j.ok) { setStatus(`Fel: ${j.error || 'okänt fel'}`); return; }
+    track(hadPrice ? 'Price Updated' : 'Price Added');
     setStatus('');
     setPriceInput('');
     setUndoAction({ type: 'price', price_id: j.price.id, bar_id: selectedBar.id });
@@ -817,6 +827,7 @@ export default function Page() {
     });
     const j = await r.json();
     if (!j.ok) { setStatus(`Fel: ${j.error || 'okänt fel'}`); return; }
+    track('Price Added');
     setStatus('');
     setPriceInput('');
     await loadBarsAndPrices();
@@ -840,6 +851,7 @@ export default function Page() {
     });
     const j = await r.json();
     if (!j.ok) { setStatus(`Fel: ${j.error || 'okänt fel'}`); return; }
+    track('No NA Reported');
     setStatus('');
     setPriceInput('');
     setUndoAction({ type: 'no_na', bar_id: selectedBar.id });
@@ -857,6 +869,7 @@ export default function Page() {
     });
     const j = await r.json();
     if (!j.ok) { setStatus(`Fel: ${j.error || 'okänt fel'}`); return; }
+    track('No NA Reported');
     setStatus('');
     setPriceInput('');
     await loadBarsAndPrices();
@@ -944,6 +957,8 @@ export default function Page() {
   }
 
   function openGoogleResult(place: { google_place_id: string | null; name: string; address: string | null; lat: number; lng: number }) {
+    track('Search Used');
+    track('New Bar Added');
     setSearchOpen(false);
     setSearchQuery('');
     setGoogleResults([]);
@@ -985,6 +1000,7 @@ export default function Page() {
   }
 
   function openBarFromSearch(b: Bar) {
+    track('Search Used');
     setSearchOpen(false);
     setSearchQuery('');
     setOhChecked(false);
@@ -1229,7 +1245,7 @@ export default function Page() {
           </button>
           <button
             className={styles.hamburgerBtn}
-            onClick={() => { const next = !omOpen; setOmOpen(next); window.history.replaceState(null, '', next ? '/info' : '/'); }}
+            onClick={() => { const next = !omOpen; setOmOpen(next); window.history.replaceState(null, '', next ? '/info' : '/'); if (next) track('Info Opened'); }}
             aria-label="Om projektet"
             title="Om projektet"
           >
