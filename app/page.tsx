@@ -44,9 +44,14 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const PRICE_TEXT_ZOOM = 13;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function track(event: string, props?: Record<string, string>) {
-  try { (window as any).plausible?.(event, props ? { props } : undefined); } catch {}
+  try {
+    fetch('/api/track', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: event, url: window.location.href, props }),
+    }).catch(() => {});
+  } catch {}
 }
 
 function fmtShort(iso: string) {
@@ -387,6 +392,7 @@ export default function Page() {
   const latestPricesRef = useRef<Map<number, LatestPrice>>(new Map());
   useEffect(() => { barsRef.current = bars; }, [bars]);
   useEffect(() => { latestPricesRef.current = latestPrices; }, [latestPrices]);
+  useEffect(() => { track('pageview'); }, []);
 
   const [welcomeOpen, setWelcomeOpen] = useState(!searchParams.has('bar'));
   const [omOpen, setOmOpen] = useState(() => pathname === '/info');

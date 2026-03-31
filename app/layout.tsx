@@ -1,5 +1,4 @@
 import { Suspense } from 'react';
-import Script from 'next/script';
 import "./globals.css";
 
 export const metadata = {
@@ -26,11 +25,6 @@ export default function RootLayout({
     <html lang="sv">
       <body>
         <Suspense>{children}</Suspense>
-        <Script src="https://plausible.io/js/pa-QGIsfj-z_AH_VAAhwJdPe.js" strategy="afterInteractive" />
-        <Script id="plausible-init" strategy="afterInteractive">{`
-          window.plausible=window.plausible||function(){(plausible.q=plausible.q||[]).push(arguments)},plausible.init=plausible.init||function(i){plausible.o=i||{}};
-          plausible.init()
-        `}</Script>
       </body>
     </html>
   );
