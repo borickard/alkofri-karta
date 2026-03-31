@@ -29,6 +29,7 @@ export async function POST(req: Request) {
     const source = body.source ? String(body.source) : 'maptiler';
     const venue_type = body.venue_type ? String(body.venue_type) : null;
     const opening_hours = body.opening_hours ? String(body.opening_hours).trim() : null;
+    const address = body.address ? String(body.address) : null;
 
     if (!name) return jsonError('name saknas.');
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return jsonError('lat/lng saknas.');
@@ -43,6 +44,7 @@ export async function POST(req: Request) {
         source_id: source_id ?? `fallback-${name}-${lat.toFixed(6)}-${lng.toFixed(6)}`,
         venue_type,
         opening_hours,
+        ...(address !== null ? { address } : {}),
       }, { onConflict: 'source,source_id' })
       .select('id')
       .single();

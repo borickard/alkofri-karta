@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, usePathname } from 'next/navigation';
 import maplibregl, { Map as MLMap, MapMouseEvent } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { createClient } from '@supabase/supabase-js';
@@ -18,6 +18,7 @@ type Bar = {
   no_na_reported_at: string | null;
   venue_type: string | null;
   opening_hours: string | null;
+  address: string | null;
 };
 
 type LatestPrice = {
@@ -100,6 +101,43 @@ function deriveVenueType(
       ['music_venue', 'dance'].some(v => leisure === v || subclass === v) ||
       ['nightclub', 'music_venue', 'concert_hall', 'event_venue'].some(v => entertainment === v)) return 'bar';
   return 'other';
+}
+
+async function fetchHouseNumberOverpass(lat: number, lng: number, road: string): Promise<string | null> {
+  const roadPattern = road.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const q = `[out:json][timeout:5];(node["addr:housenumber"]["addr:street"~"^${roadPattern}$",i](around:60,${lat},${lng});way["addr:housenumber"]["addr:street"~"^${roadPattern}$",i](around:60,${lat},${lng}););out center;`;
+  const endpoints = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
+  for (const endpoint of endpoints) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 5000);
+      const r = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `data=${encodeURIComponent(q)}`,
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+      if (!r.ok) continue;
+      const data = await r.json() as { elements?: { tags?: { 'addr:housenumber'?: string }; lat?: number; lon?: number; center?: { lat: number; lon: number } }[] };
+      let bestNum: string | null = null;
+      let bestDist = Infinity;
+      for (const el of data.elements ?? []) {
+        const elLat = el.lat ?? el.center?.lat;
+        const elLon = el.lon ?? el.center?.lon;
+        const num = el.tags?.['addr:housenumber'];
+        if (!num || elLat == null || elLon == null) continue;
+        const dlat = (elLat - lat) * 111000;
+        const dlng = (elLon - lng) * 111000 * Math.cos(lat * Math.PI / 180);
+        const dist = Math.sqrt(dlat * dlat + dlng * dlng);
+        if (dist < bestDist) { bestDist = dist; bestNum = num; }
+      }
+      return bestNum;
+    } catch {
+      // try next endpoint
+    }
+  }
+  return null;
 }
 
 function applyFilters(
@@ -327,11 +365,12 @@ export default function Page() {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MLMap | null>(null);
 
-  const zoomRef = useRef<number>(12);
-  const [zoomLevel, setZoomLevel] = useState(12);
+  const zoomRef = useRef<number>(5);
+  const [zoomLevel, setZoomLevel] = useState(5);
   const markersRef = useRef<Map<number, maplibregl.Marker>>(new Map());
 
   const searchParams = useSearchParams();
+  const pathname = usePathname();
   const isDemoMode = searchParams.has('demo');
 
   const [bars, setBars] = useState<Bar[]>([]);
@@ -345,7 +384,7 @@ export default function Page() {
   useEffect(() => { latestPricesRef.current = latestPrices; }, [latestPrices]);
 
   const [welcomeOpen, setWelcomeOpen] = useState(!searchParams.has('bar'));
-  const [omOpen, setOmOpen] = useState(false);
+  const [omOpen, setOmOpen] = useState(() => pathname === '/info');
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [googleResults, setGoogleResults] = useState<{ google_place_id: string | null; name: string; address: string | null; lat: number; lng: number }[]>([]);
@@ -375,7 +414,7 @@ export default function Page() {
     return parsed.length ? new Set(parsed) : new Set<PriceTier>(['green', 'yellow', 'red']);
   });
   const [activeTypes, setActiveTypes] = useState<Set<VenueType>>(() => new Set(['bar', 'food', 'hotel', 'other']));
-  const activeColorsRef = useRef<Set<PriceTier>>(new Set(['green', 'yellow', 'red']));
+  const activeColorsRef = useRef<Set<PriceTier>>(activeColors);
   const activeTypesRef = useRef<Set<VenueType>>(new Set(['bar', 'food', 'hotel', 'other']));
   const [filterOpenNow, setFilterOpenNow] = useState(() => searchParams.has('open'));
   const filterOpenNowRef = useRef(searchParams.has('open'));
@@ -384,15 +423,29 @@ export default function Page() {
   const [tierRanges, setTierRanges] = useState<Record<PriceTier, { min: number; max: number } | null>>({ green: null, yellow: null, red: null });
   const thresholdsRef = useRef<Thresholds>({ low: 35, high: 45 });
 
-  function fetchAddress(lat: number, lng: number) {
+  async function fetchAddress(lat: number, lng: number, barId?: number | null) {
     setAddress(null);
-    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`, {
-      headers: { 'Accept-Language': 'sv' },
-    }).then(r => r.json()).then((data: { address?: { road?: string; house_number?: string } }) => {
+    try {
+      const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`, {
+        headers: { 'Accept-Language': 'sv' },
+      });
+      const data = await r.json() as { address?: { road?: string; house_number?: string } };
       const road = data?.address?.road;
-      const num = data?.address?.house_number;
-      if (road) setAddress(num ? `${road} ${num}` : road);
-    }).catch(() => {});
+      if (!road) return;
+      let num = data?.address?.house_number;
+      if (!num) num = await fetchHouseNumberOverpass(lat, lng, road) ?? undefined;
+      const addr = num ? `${road} ${num}` : road;
+      setAddress(addr);
+      if (barId) {
+        fetch('/api/patch-bar', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bar_id: barId, address: addr, demo: isDemoMode }),
+        }).then(r => r.json()).then(j => {
+          if (j.ok) setBars(prev => prev.map(b => b.id === barId ? { ...b, address: addr } : b));
+        }).catch(() => {});
+      }
+    } catch {}
   }
 
   function fetchAndStoreOH(lat: number, lng: number, barId: number | null, name: string | null | undefined, onResult: (oh: string | null) => void) {
@@ -424,7 +477,7 @@ export default function Page() {
 
     const { data: barsData, error: barsErr } = await supabase
       .from(barsTable)
-      .select('id,name,lat,lng,source,source_id,no_na_beer,no_na_reported_at,venue_type,opening_hours')
+      .select('id,name,lat,lng,source,source_id,no_na_beer,no_na_reported_at,venue_type,opening_hours,address')
       .order('id', { ascending: true });
 
     console.log('barsData:', barsData?.length, barsErr);
@@ -442,6 +495,7 @@ export default function Page() {
         no_na_reported_at?: unknown;
         venue_type?: unknown;
         opening_hours?: unknown;
+        address?: unknown;
       };
 
       return {
@@ -455,6 +509,7 @@ export default function Page() {
         no_na_reported_at: (rr.no_na_reported_at as string | null | undefined) ?? null,
         venue_type: (rr.venue_type as string | null | undefined) ?? null,
         opening_hours: (rr.opening_hours as string | null | undefined) ?? null,
+        address: (rr.address as string | null | undefined) ?? null,
       };
     });
 
@@ -580,7 +635,11 @@ export default function Page() {
         window.history.replaceState(null, '', buildBarUrl(b.id));
         loadHistory(b.id).catch(console.error);
         focusPoint(b.lng, b.lat);
-        fetchAddress(b.lat, b.lng);
+        if (b.address) {
+          setAddress(b.address);
+        } else {
+          fetchAddress(b.lat, b.lng, b.id);
+        }
 
         if (!b.opening_hours) {
           fetchAndStoreOH(b.lat, b.lng, b.id, b.name, oh => {
@@ -873,8 +932,8 @@ export default function Page() {
     if (q.trim().length < 2) { setSearchLoading(false); return; }
     setSearchLoading(true);
     const center = mapRef.current?.getCenter();
-    const lng = center?.lng ?? 18.0649;
-    const lat = center?.lat ?? 59.3326;
+    const lng = center?.lng ?? 15.2134;
+    const lat = center?.lat ?? 59.2741;
     searchDebounceRef.current = setTimeout(() => {
       fetch(`/api/search-places?q=${encodeURIComponent(q.trim())}&lat=${lat}&lng=${lng}`)
         .then(r => r.json())
@@ -897,6 +956,7 @@ export default function Page() {
         lng: place.lng,
         source: 'osm',
         source_id: place.google_place_id,
+        address: place.address,
         demo: isDemoMode,
       }),
     }).then(r => r.json()).then(j => {
@@ -943,7 +1003,11 @@ export default function Page() {
     window.history.replaceState(null, '', buildBarUrl(b.id));
     loadHistory(b.id).catch(console.error);
     focusPoint(b.lng, b.lat);
-    fetchAddress(b.lat, b.lng);
+    if (b.address) {
+      setAddress(b.address);
+    } else {
+      fetchAddress(b.lat, b.lng, b.id);
+    }
     if (!b.opening_hours) {
       fetchAndStoreOH(b.lat, b.lng, b.id, b.name, oh => {
         if (oh) setBars(prev => prev.map(bar => bar.id === b.id ? { ...bar, opening_hours: oh } : bar));
@@ -1007,8 +1071,8 @@ export default function Page() {
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
       style: `https://api.maptiler.com/maps/streets-v2/style.json?key=${MAPTILER_KEY}`,
-      center: [18.0649, 59.3326],
-      zoom: 12,
+      center: [15.2134, 59.2741],
+      zoom: 5,
       attributionControl: false,
     });
 
@@ -1028,6 +1092,7 @@ export default function Page() {
     const onMoveEnd = () => { refreshMap(); };
 
     const onClick = (e: MapMouseEvent) => {
+      if ((e.originalEvent?.target as Element | null)?.closest?.('.maplibregl-marker')) return;
       const cand = pickCandidateFromClick(map, e);
       if (!cand) { closePanel(); return; }
       setOhChecked(false);
@@ -1056,6 +1121,17 @@ export default function Page() {
         setSelectedBarId(j.bar_id);
         setCandidate(null);
         window.history.replaceState(null, '', buildBarUrl(j.bar_id));
+        // Save the address that was fetched for this candidate
+        setAddress(prev => {
+          if (prev) {
+            fetch('/api/patch-bar', {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ bar_id: j.bar_id, address: prev, demo: isDemoMode }),
+            }).catch(() => {});
+          }
+          return prev;
+        });
         loadBarsAndPrices().catch(console.error);
         fetchAndStoreOH(cand.lat, cand.lng, j.bar_id, cand.name, oh => {
           if (oh) setBars(prev => prev.map(b => b.id === j.bar_id ? { ...b, opening_hours: oh } : b));
@@ -1100,7 +1176,11 @@ export default function Page() {
             setPriceView('confirm');
             await loadHistory(bar.id);
             focusPoint(bar.lng, bar.lat);
-            fetchAddress(bar.lat, bar.lng);
+            if (bar.address) {
+              setAddress(bar.address);
+            } else {
+              fetchAddress(bar.lat, bar.lng, bar.id);
+            }
             if (!bar.opening_hours) {
               fetchAndStoreOH(bar.lat, bar.lng, bar.id, bar.name, oh => {
                 if (oh) setBars(prev => prev.map(b => b.id === bar.id ? { ...b, opening_hours: oh } : b));
@@ -1149,7 +1229,7 @@ export default function Page() {
           </button>
           <button
             className={styles.hamburgerBtn}
-            onClick={() => setOmOpen(true)}
+            onClick={() => { const next = !omOpen; setOmOpen(next); window.history.replaceState(null, '', next ? '/info' : '/'); }}
             aria-label="Om projektet"
             title="Om projektet"
           >
@@ -1203,28 +1283,9 @@ export default function Page() {
           ⌖
         </button>
 
-        <button
-          className={styles.locateBtn}
-          onClick={toggleOpenNow}
-          aria-label="Öppet nu"
-          title="Öppet nu"
-          style={{
-            top: 158,
-            ...(filterOpenNow ? { background: '#D1FAE5', borderColor: '#6EE7B7' } : {}),
-          }}
-        >
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-            <circle cx="9" cy="9" r="7.5" stroke="#111827" strokeWidth="1.5"/>
-            <line x1="9" y1="4.5" x2="9" y2="9" stroke="#111827" strokeWidth="1.5" strokeLinecap="round"/>
-            <line x1="9" y1="9" x2="12" y2="11.5" stroke="#111827" strokeWidth="1.5" strokeLinecap="round"/>
-          </svg>
-        </button>
 
         {/* Admin + demo — left edge, vertically centered */}
         <div className={styles.leftPanel}>
-          {process.env.NODE_ENV === 'development' && (
-            <a href="/admin" className={styles.devBtn}>Admin</a>
-          )}
           {isDemoMode && (
             <div style={{
               background: '#ffffff',
@@ -1253,7 +1314,7 @@ export default function Page() {
         </div>
 
         {/* Filter toolbar */}
-        <div className={styles.filterBar}>
+        <div className={`${styles.filterBar}${visiblePriceCount < 3 ? ` ${styles.filterBarHidden}` : ''}`}>
           {([
             { tier: 'green' as PriceTier, bg: '#D1FAE5', border: '#6EE7B7', label: 'Billigt' },
             { tier: 'yellow' as PriceTier, bg: '#FEF3C7', border: '#FCD34D', label: 'Medel' },
@@ -1294,45 +1355,6 @@ export default function Page() {
                 display: 'flex',
               }}>
                 {selectedBar ? selectedBar.name : candidate?.name}
-                {(() => {
-                  const oh = selectedBar?.opening_hours ?? candidate?.opening_hours ?? null;
-                  if (ohLoading) return <div style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#9ca3af', marginTop: 2 }}>Hämtar öppettider…</div>;
-                  if (ohChecked && !oh) return <div style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#9ca3af', marginTop: 2 }}>Öppettider ej tillgängliga</div>;
-                  const status = getOpenStatus(oh);
-                  if (!status) return null;
-                  if (status.open) return (
-                    <div style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600, color: '#059669', marginTop: 2 }}>● Öppet nu</div>
-                  );
-                  let closedLabel = 'Stängt';
-                  if (status.nextTime) {
-                    if (status.opensLaterToday) {
-                      closedLabel = `Stängt, öppnar kl ${status.nextTime}`;
-                    } else if (status.nextDay !== null) {
-                      const todayJS = new Date().getDay();
-                      const tomorrowJS = (todayJS + 1) % 7;
-                      closedLabel = status.nextDay === tomorrowJS
-                        ? `Stängt, öppnar imorgon kl ${status.nextTime}`
-                        : `Stängt, öppnar på ${SV_DAYS[status.nextDay]} kl ${status.nextTime}`;
-                    }
-                  }
-                  return <div style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600, color: '#DC2626', marginTop: 2 }}>● {closedLabel}</div>;
-                })()}
-                {address && (() => {
-                  const name = selectedBar?.name ?? candidate?.name ?? '';
-                  const query = name ? `${name}, ${address}` : address;
-                  const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query!)}`;
-                  return (
-                    <a
-                      href={mapsUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#6b7280', marginTop: 2, display: 'inline-flex', alignItems: 'center', gap: 3, textDecoration: 'none' }}
-                    >
-                      {address}
-                      <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="#6b7280" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M5 2H2a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V7"/><path d="M8 1h3v3"/><line x1="11" y1="1" x2="5.5" y2="6.5"/></svg>
-                    </a>
-                  );
-                })()}
               </div>
               <button
                 onClick={closePanel}
@@ -1407,9 +1429,9 @@ export default function Page() {
                       gap: 5,
                     }}>
                       <span style={{
-                        fontFamily: 'var(--font-heading)',
+                        fontFamily: 'var(--font-body)',
                         fontSize: 30,
-                        fontWeight: 700,
+                        fontWeight: 400,
                         color: '#111827',
                         lineHeight: 1,
                       }}>{lp!.price_sek}</span>
@@ -1545,7 +1567,7 @@ export default function Page() {
               <div style={{
                 fontFamily: 'var(--font-body)',
                 fontSize: 15,
-                lineHeight: 1.6,
+                lineHeight: 1.3,
                 color: '#fff',
                 marginBottom: 20,
               }}>
@@ -1556,7 +1578,7 @@ export default function Page() {
               <div style={{
                 fontFamily: 'var(--font-body)',
                 fontSize: 14,
-                lineHeight: 1.8,
+                lineHeight: 1.3,
                 color: '#fff',
                 marginBottom: 28,
                 display: 'flex',
@@ -1613,7 +1635,7 @@ export default function Page() {
                     textDecoration: 'underline',
                     textUnderlineOffset: 3,
                   }}>
-                    Ett initiativ av IQ
+                    Ett projekt från IQ
                   </span>
                 </a>
               </div>
@@ -1621,68 +1643,82 @@ export default function Page() {
           </div>
         ) : null}
 
-        {omOpen ? (
-          <div className={styles.welcomeOverlay} onClick={() => setOmOpen(false)}>
-            <div
-              className={styles.welcomeCard}
-              onClick={(e) => e.stopPropagation()}
-              style={{
-                background: '#ffffff',
-                maxWidth: 500,
-                padding: '32px 28px',
-                borderRadius: 16,
-                border: '1px solid #e5e7eb',
-                boxShadow: '0 8px 32px rgba(0,0,0,0.14)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 0,
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
-                <div style={{ fontFamily: 'var(--font-heading)', fontSize: 26, color: '#111827', lineHeight: 1.2 }}>
-                  Om projektet
-                </div>
-                <button
-                  onClick={() => setOmOpen(false)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: '#6B7280', padding: '0 0 0 12px', lineHeight: 1 }}
-                  aria-label="Stäng"
-                >✕</button>
+        <div
+          className={`${styles.omOverlay}${omOpen ? ` ${styles.omOverlayOpen}` : ''}`}
+          onClick={() => { setOmOpen(false); window.history.replaceState(null, '', '/'); }}
+        >
+          <div
+            className={`${styles.omCard}${omOpen ? ` ${styles.omCardOpen}` : ''}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'flex-start',
+              marginBottom: '20px'
+            }}>
+              <div style={{
+                fontFamily: 'var(--font-heading)',
+                fontSize: '26px',
+                color: '#111827',
+                lineHeight: '1.2'
+              }}>
+                Om projektet
               </div>
+              <button
+                onClick={() => { setOmOpen(false); window.history.replaceState(null, '', '/'); }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '20px',
+                  color: '#6B7280',
+                  padding: '0 0 0 12px',
+                  lineHeight: '1'
+                }}
+                aria-label="Stäng"
+              >
+                ✕
+              </button>
+            </div>
 
-              <div style={{ fontFamily: 'var(--font-body)', fontSize: 14, lineHeight: 1.7, color: '#374151', display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <p style={{ margin: 0 }}>
-                  <strong>Vad kostar nollan?</strong> är en öppen karta som visar priser på alkoholfri öl på barer, restauranger och andra serveringsställen runt om i Sverige.
+            {/* Body */}
+            <div style={{
+              fontFamily: 'var(--font-body)',
+              fontSize: '15px',
+              lineHeight: '1.6',
+              color: '#374151',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '14px'
+            }}>
+              <p style={{ margin: 0 }}>
+                <strong>Vad kostar nollan?</strong> är en öppen karta över priser på alkoholfri öl på barer och restauranger i Sverige. All data rapporteras och uppdateras av besökare. Du bidrar till att göra det enklare att hitta alkoholfri öl till ett rimligt pris.
+              </p>
+
+              <p style={{ margin: 0, color: '#6B7280', fontSize: '13px' }}>
+                ⚠️ Uppgifterna kan vara inaktuella. Priser ändras och vi kan inte
+                garantera att informationen stämmer vid ditt besök.
+              </p>
+
+              <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '14px' }}>
+                <p style={{ margin: 0, color: '#6B7280', fontSize: '13px' }}>
+                  En tjänst från{' '}
+                  <a
+                    href="https://www.iq.se"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: '#111827', fontWeight: 600 }}
+                  >
+                    IQ
+                  </a>
+                  {', '}för ett smartare förhållande till alkohol.
                 </p>
-
-                <div>
-                  <div style={{ fontFamily: 'var(--font-heading)', fontSize: 15, color: '#111827', marginBottom: 6 }}>Hur samlas data in?</div>
-                  <p style={{ margin: 0 }}>
-                    All data i kartan rapporteras av besökare som du. När du besöker ett ställe och vill dela priset du betalat, klickar du på platsen och lägger till priset. Det finns ingen redaktion eller kvalitetskontroll — vi litar på att communityn bidrar med korrekta uppgifter.
-                  </p>
-                </div>
-
-                <div style={{ background: '#FEF3C7', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#92400E' }}>
-                  Observera att uppgifterna kan vara inaktuella eller felaktiga. Priser ändras och vi kan inte garantera att informationen stämmer vid ditt besök.
-                </div>
-
-                <div>
-                  <div style={{ fontFamily: 'var(--font-heading)', fontSize: 15, color: '#111827', marginBottom: 6 }}>Varför?</div>
-                  <p style={{ margin: 0 }}>
-                    Att dricka alkoholfri öl ska inte behöva kosta skjortan. Det här projektet vill göra det enklare att hitta ställen där du kan njuta av ett gott alkoholfritt alternativ till ett rimligt pris — oavsett om du väljer att inte dricka alkohol av hälsoskäl, kör bil, är gravid, eller helt enkelt föredrar det.
-                  </p>
-                </div>
-
-                <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: 16 }}>
-                  <p style={{ margin: 0, color: '#6B7280', fontSize: 13 }}>
-                    Projektet drivs av{' '}
-                    <a href="https://www.iq.se" target="_blank" rel="noopener noreferrer" style={{ color: '#111827', fontWeight: 600 }}>IQ</a>
-                    {' '}— en organisation som arbetar för ett sundare förhållande till alkohol i Sverige.
-                  </p>
-                </div>
               </div>
             </div>
           </div>
-        ) : null}
+        </div>
 
       </div>
     </div>

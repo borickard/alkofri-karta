@@ -297,6 +297,52 @@
   pointer-events: auto;
 }
 
+.omOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  overflow: hidden;
+  pointer-events: none;
+  background: rgba(0, 0, 0, 0);
+  transition: background 0.3s ease;
+}
+
+.omOverlayOpen {
+  pointer-events: auto;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.omCard {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  background: #ffffff;
+  overflow-y: auto;
+  padding: 32px 24px;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.32s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: auto;
+}
+
+.omCardOpen {
+  transform: translateX(0);
+}
+
+@media (min-width: 640px) {
+  .omCard {
+    width: 50%;
+    min-width: 380px;
+    max-width: 540px;
+    padding: 40px 36px;
+    border-left: 1px solid #e5e7eb;
+    box-shadow: -8px 0 40px rgba(0, 0, 0, 0.12);
+  }
+}
+
 .welcomeCard {
   width: min(540px, calc(100vw - 24px));
   background: var(--bg);
@@ -342,7 +388,7 @@
   position: absolute;
   bottom: 12px;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translateX(-50%) translateY(0);
   z-index: 20;
   display: flex;
   flex-direction: row;
@@ -354,6 +400,11 @@
   border-radius: 4px;
   padding: 4px;
   max-width: calc(100vw - 24px);
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.filterBarHidden {
+  transform: translateX(-50%) translateY(calc(100% + 20px));
 }
 
 /* Left-side panel for admin/demo */

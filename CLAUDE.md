@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Alkofri-karta** — a Swedish crowdsourced map for finding alcohol-free (NA) beer prices at bars and restaurants. Users submit prices, report missing NA beer, and flag incorrect entries. Admins moderate via a protected panel.
+**Vad kostar nollan?** — a Swedish crowdsourced map for finding alcohol-free (NA) beer prices at bars and restaurants. Users submit prices, report missing NA beer, and flag incorrect entries. Admins moderate via a protected panel.
 
 ## Commands
 

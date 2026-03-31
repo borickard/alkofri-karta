@@ -237,6 +237,16 @@ export async function PATCH(req: Request) {
     const demo = Boolean(body.demo);
     const barsTable = demo ? 'bars_demo' : 'bars';
 
+    // Address-only update path
+    if (body.address !== undefined && !body.lat && !body.opening_hours) {
+      const address = body.address ? String(body.address) : null;
+      if (bar_id) {
+        const { error } = await supabase.from(barsTable).update({ address }).eq('id', bar_id);
+        if (error) return jsonError(`DB: ${error.message}`, 500);
+      }
+      return NextResponse.json({ ok: true });
+    }
+
     let opening_hours: string | null = body.opening_hours ? String(body.opening_hours).trim() : null;
 
     let osm_name: string | null = null;
