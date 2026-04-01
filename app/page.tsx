@@ -799,12 +799,12 @@ export default function Page() {
     refreshMap(barsRef.current, latestPricesRef.current, activeColorsRef.current, next);
   }
 
-  function focusPoint(lng: number, lat: number) {
+  function focusPoint(lng: number, lat: number, zoom?: number) {
     const map = mapRef.current;
     if (!map) return;
     const h = map.getContainer().clientHeight || 800;
     // Negative offset: bar appears above screen center, visible above the centered panel
-    map.easeTo({ center: [lng, lat], offset: [0, -Math.round(h / 5)], duration: 350 });
+    map.easeTo({ center: [lng, lat], offset: [0, -Math.round(h / 5)], duration: 350, ...(zoom !== undefined ? { zoom } : {}) });
   }
 
   async function locateMe() {
@@ -1239,7 +1239,7 @@ export default function Page() {
             setPanelOpen(true);
             setPriceView('confirm');
             await loadHistory(bar.id);
-            focusPoint(bar.lng, bar.lat);
+            focusPoint(bar.lng, bar.lat, 16);
             if (bar.address) {
               setAddress(bar.address);
             } else {
