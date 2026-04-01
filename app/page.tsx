@@ -396,6 +396,7 @@ export default function Page() {
 
   const zoomRef = useRef<number>(5);
   const [zoomLevel, setZoomLevel] = useState(5);
+  const [mapLoaded, setMapLoaded] = useState(false);
   const markersRef = useRef<Map<number, maplibregl.Marker>>(new Map());
 
   const searchParams = useSearchParams();
@@ -1201,7 +1202,7 @@ export default function Page() {
     };
 
     map.on('zoom', onZoom);
-    map.on('load', onZoom);
+    map.on('load', () => { onZoom(); setMapLoaded(true); });
     map.on('moveend', onMoveEnd);
     map.on('click', onClick);
 
@@ -1339,6 +1340,7 @@ export default function Page() {
 
       <div className={styles.mapWrap}>
         <div ref={mapContainerRef} className={styles.map} />
+        {!mapLoaded && <div className={styles.mapLoadingBg} />}
 
         <button className={styles.locateBtn} onClick={locateMe} aria-label="Hitta min plats" title="Hitta min plats">
           ⌖

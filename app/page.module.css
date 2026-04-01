@@ -30,6 +30,14 @@
   inset: 0;
 }
 
+.mapLoadingBg {
+  position: absolute;
+  inset: 0;
+  background: #7ac4f9;
+  pointer-events: none;
+  z-index: 1;
+}
+
 .mapBtn {
   background: #ffffff;
   border: 1px solid #d1d5db;
