@@ -1134,6 +1134,8 @@ export default function Page() {
         if (layer.type !== 'symbol') continue;
         const field = (layer as { layout?: Record<string, unknown> }).layout?.['text-field'];
         if (!field) continue;
+        // Skip road shield layers that use 'ref', not 'name'
+        if (!JSON.stringify(field).includes('name')) continue;
         map.setLayoutProperty(layer.id, 'text-field', [
           'coalesce', ['get', 'name:sv'], ['get', 'name'],
         ]);
