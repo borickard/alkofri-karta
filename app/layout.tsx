@@ -21,6 +21,7 @@ export const metadata = {
     images: ['/vadkostarnollan.jpg'],
   },
   // We ship this file as `web/public/site.webmanifest`.
+  verification: { google: 'E1lTNdKO9u6axEj8qXcZCggHSnFGofsEjwl3fAaXBI8' },
   manifest: '/site.webmanifest',
   icons: {
     icon: [
