@@ -370,6 +370,25 @@ function isOpenNow(oh: string | null | undefined): boolean | null {
   return s.open;
 }
 
+function isInSweden(lat: number, lng: number): boolean {
+  // Rough bounding box pre-filter only — not used for accurate country detection
+  return lat >= 54.5 && lat <= 70 && lng >= 9 && lng <= 25;
+}
+
+async function checkIsSweden(lat: number, lng: number): Promise<boolean> {
+  if (!isInSweden(lat, lng)) return false;
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=3`
+    );
+    if (!res.ok) return true; // fail open if API down
+    const data = await res.json();
+    return data?.address?.country_code === 'se';
+  } catch {
+    return true; // fail open
+  }
+}
+
 export default function Page() {
 
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
@@ -405,6 +424,11 @@ export default function Page() {
   const [selectedBarId, setSelectedBarId] = useState<number | null>(null);
   const selectedBar = useMemo(() => (selectedBarId ? bars.find(b => b.id === selectedBarId) ?? null : null), [bars, selectedBarId]);
   const [candidate, setCandidate] = useState<Candidate | null>(null);
+  const locationInSweden = selectedBar
+    ? isInSweden(selectedBar.lat, selectedBar.lng)
+    : candidate
+    ? isInSweden(candidate.lat, candidate.lng)
+    : true;
   const [panelOpen, setPanelOpen] = useState(false);
   const [priceInput, setPriceInput] = useState('');
   const [status, setStatus] = useState('');
@@ -962,7 +986,8 @@ export default function Page() {
     }, 350);
   }
 
-  function openGoogleResult(place: { google_place_id: string | null; name: string; address: string | null; lat: number; lng: number }) {
+  async function openGoogleResult(place: { google_place_id: string | null; name: string; address: string | null; lat: number; lng: number }) {
+    if (!await checkIsSweden(place.lat, place.lng)) return;
     track('Search Used');
     track('New Bar Added');
     setSearchOpen(false);
@@ -1005,7 +1030,8 @@ export default function Page() {
     }).catch(console.error);
   }
 
-  function openBarFromSearch(b: Bar) {
+  async function openBarFromSearch(b: Bar) {
+    if (!await checkIsSweden(b.lat, b.lng)) return;
     track('Search Used');
     setSearchOpen(false);
     setSearchQuery('');
@@ -1092,7 +1118,7 @@ export default function Page() {
 
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
-      style: `https://api.maptiler.com/maps/streets-v2/style.json?key=${MAPTILER_KEY}`,
+      style: `https://api.maptiler.com/maps/streets-v2/style.json?key=${MAPTILER_KEY}&language=sv`,
       center: [15.2134, 59.2741],
       zoom: 5,
       attributionControl: false,
@@ -1100,6 +1126,18 @@ export default function Page() {
 
     map.addControl(new maplibregl.NavigationControl({ showCompass: true }), 'top-right');
     map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-left');
+
+    map.on('styledata', () => {
+      const style = map.getStyle();
+      for (const layer of style?.layers ?? []) {
+        if (layer.type !== 'symbol') continue;
+        const field = (layer as { layout?: Record<string, unknown> }).layout?.['text-field'];
+        if (!field) continue;
+        map.setLayoutProperty(layer.id, 'text-field', [
+          'coalesce', ['get', 'name:sv'], ['get', 'name'],
+        ]);
+      }
+    });
 
     mapRef.current = map;
     setZoomLevel(map.getZoom());
@@ -1113,10 +1151,11 @@ export default function Page() {
 
     const onMoveEnd = () => { refreshMap(); };
 
-    const onClick = (e: MapMouseEvent) => {
+    const onClick = async (e: MapMouseEvent) => {
       if ((e.originalEvent?.target as Element | null)?.closest?.('.maplibregl-marker')) return;
       const cand = pickCandidateFromClick(map, e);
       if (!cand) { closePanel(); return; }
+      if (!await checkIsSweden(cand.lat, cand.lng)) return;
       setOhChecked(false);
       setOhLoading(false);
       setOhSourceName(null);
@@ -1397,7 +1436,11 @@ export default function Page() {
             {status ? <div className={styles.status}>{status}</div> : null}
 
             {/* Price section */}
-            {(() => {
+            {!locationInSweden ? (
+              <p className={styles.status}>
+                Den här platsen är utanför Sverige och stöds inte än.
+              </p>
+            ) : (() => {
               const lp = selectedBar ? latestPrices.get(selectedBar.id) : null;
               const hasPrice = !!lp;
               const isNoNa = selectedBar?.no_na_beer;
@@ -1531,7 +1574,7 @@ export default function Page() {
             })()}
 
             {/* No NA beer button — only when bar has no price */}
-            {!(selectedBar ? !!latestPrices.get(selectedBar.id) : false) && !selectedBar?.no_na_beer && (
+            {locationInSweden && !(selectedBar ? !!latestPrices.get(selectedBar.id) : false) && !selectedBar?.no_na_beer && (
               <button
                 className={styles.btn}
                 onClick={() => (selectedBar ? reportNoNaSelected() : reportNoNaCandidate())}

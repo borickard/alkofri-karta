@@ -59,6 +59,7 @@ export async function POST(req: Request) {
 
       if (!name) return jsonError('name saknas.');
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) return jsonError('lat/lng saknas.');
+      if (lat < 55.0 || lat > 69.5 || lng < 10.0 || lng > 25.0) return jsonError('Platsen är utanför Sverige.');
 
       type BarUpsertPayload = {
         name: string;
