@@ -441,7 +441,9 @@ export default function Page() {
   const [ohChecked, setOhChecked] = useState(false);
   const [ohSourceName, setOhSourceName] = useState<string | null>(null);
   const [ohSource, setOhSource] = useState<'google' | 'osm' | null>(null);
+  const [ohExpanded, setOhExpanded] = useState(false);
   const [address, setAddress] = useState<string | null>(null);
+  useEffect(() => { setOhExpanded(false); }, [selectedBarId]);
 
   const [activeColors, setActiveColors] = useState<Set<PriceTier>>(() => {
     const param = searchParams.get('colors');
@@ -461,7 +463,7 @@ export default function Page() {
   const thresholdsRef = useRef<Thresholds>({ low: 35, high: 45 });
 
   function fetchAddress(addr: string | null) {
-    setAddress(addr);
+    setAddress(addr ?? null);
   }
 
   function fetchAndStoreOH(lat: number, lng: number, barId: number | null, name: string | null | undefined, onResult: (oh: string | null) => void) {
@@ -1419,6 +1421,7 @@ export default function Page() {
                 ? `https://www.google.com/maps/place/?q=place_id:${placeId}`
                 : addr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}` : null;
               if (!addr && !oh) return null;
+              const openStatus = getOpenStatus(oh);
               return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontFamily: 'var(--font-body)', fontSize: 13, color: '#6B7280' }}>
                   {addr && mapsUrl && (
@@ -1427,7 +1430,37 @@ export default function Page() {
                     </a>
                   )}
                   {addr && !mapsUrl && <span>{addr}</span>}
-                  {oh && <span style={{ whiteSpace: 'pre-wrap' }}>{oh.replace(/; /g, '\n')}</span>}
+                  {oh && openStatus !== null && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <button
+                        onClick={() => setOhExpanded(v => !v)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}
+                      >
+                        <span style={{
+                          display: 'inline-block', padding: '2px 8px', borderRadius: 4, fontSize: 12, fontWeight: 600,
+                          background: openStatus.open ? '#dcfce7' : '#fee2e2',
+                          color: openStatus.open ? '#16a34a' : '#dc2626',
+                        }}>
+                          {openStatus.open ? 'Öppet' : 'Stängt'}
+                        </span>
+                        {!openStatus.open && openStatus.nextTime && (
+                          <span style={{ fontSize: 12 }}>
+                            {openStatus.opensLaterToday
+                              ? `· öppnar ${openStatus.nextTime}`
+                              : openStatus.nextDay !== null
+                                ? `· öppnar ${SV_DAYS[openStatus.nextDay]} ${openStatus.nextTime}`
+                                : null}
+                          </span>
+                        )}
+                        <span style={{ fontSize: 11, color: '#9ca3af' }}>{ohExpanded ? '▲' : '▼'}</span>
+                      </button>
+                      {ohExpanded && (
+                        <div style={{ fontSize: 12, color: '#6B7280', whiteSpace: 'pre-wrap', paddingLeft: 2 }}>
+                          {oh.replace(/; /g, '\n')}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })()}
