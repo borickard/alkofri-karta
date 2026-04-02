@@ -26,6 +26,17 @@ type PriceRow = {
 
 type SortKey = 'newest' | 'oldest' | 'highest' | 'lowest';
 
+type MatchRow = { id: number; bar_name: string; google_name: string; similarity: number; dist: number; place_id: string };
+type MatchResult = {
+  ok: boolean;
+  dry_run: boolean;
+  total: number;
+  matched: number;
+  unmatched: number;
+  skipped_low_confidence: number;
+  results: { matched: MatchRow[]; unmatched: { id: number; name: string }[]; skipped: { id: number; bar_name: string; google_name: string; similarity: number }[] };
+};
+
 const card = (extra?: CSSProperties): CSSProperties => ({
   background: '#ffffff',
   border: '1px solid #e5e7eb',
@@ -125,6 +136,8 @@ export default function AdminPage() {
   const [audit, setAudit] = useState<AuditRow[]>([]);
   const [includeDeleted, setIncludeDeleted] = useState(false);
   const [barsWithPrices, setBarsWithPrices] = useState<number | null>(null);
+  const [matchLoading, setMatchLoading] = useState(false);
+  const [matchResult, setMatchResult] = useState<MatchResult | null>(null);
 
   const headline = useMemo(() => (tab === 'prices' ? 'Prishistorik' : 'Audit-logg'), [tab]);
 
@@ -228,6 +241,23 @@ export default function AdminPage() {
       await load();
     } catch (e: unknown) {
       setStatus(e instanceof Error ? e.message : 'Fel');
+    }
+  }
+
+  async function runMatch(dryRun: boolean) {
+    setMatchLoading(true);
+    try {
+      const r = await fetch('/api/admin/match-google-places', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dry_run: dryRun, min_similarity: 0.3 }),
+      });
+      const j = await r.json();
+      setMatchResult(j);
+    } catch (e: unknown) {
+      setStatus(e instanceof Error ? e.message : 'Fel');
+    } finally {
+      setMatchLoading(false);
     }
   }
 
@@ -378,6 +408,46 @@ export default function AdminPage() {
             </div>
           </div>
         )}
+
+        {/* Match Google Places */}
+        <div style={card({ padding: 16 })}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 10 }}>Matcha mot Google Places</div>
+          <div style={{ ...muted, marginBottom: 12 }}>Kopplar barer utan google_place_id till Google Places för att hämta adress och öppettider.</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button style={btn('light')} onClick={() => runMatch(true)} disabled={matchLoading}>
+              {matchLoading ? 'Kör…' : 'Förhandsgranska'}
+            </button>
+            {matchResult && matchResult.matched > 0 && matchResult.dry_run && (
+              <button style={btn('dark')} onClick={() => runMatch(false)} disabled={matchLoading}>
+                Spara {matchResult.matched} matchningar
+              </button>
+            )}
+          </div>
+          {matchResult && (
+            <div style={{ marginTop: 12 }}>
+              <div style={{ ...muted, marginBottom: 8 }}>
+                Totalt: {matchResult.total} · Matchade: {matchResult.matched} · Ej matchade: {matchResult.unmatched} · Osäkra: {matchResult.skipped_low_confidence}
+                {!matchResult.dry_run && <span style={{ color: '#065f46', fontWeight: 600 }}> · Sparade!</span>}
+              </div>
+              {matchResult.results.matched.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {matchResult.results.matched.map(m => (
+                    <div key={m.id} style={card({ padding: '8px 10px', background: '#f0fdf4' })}>
+                      <span style={{ fontWeight: 600, color: '#111827', fontSize: 13 }}>{m.bar_name}</span>
+                      <span style={{ ...muted, fontSize: 12 }}> → {m.google_name} ({Math.round(m.similarity * 100)}% likhet, {m.dist}m)</span>
+                    </div>
+                  ))}
+                  {matchResult.results.unmatched.map(m => (
+                    <div key={m.id} style={card({ padding: '8px 10px', background: '#fef2f2' })}>
+                      <span style={{ fontWeight: 600, color: '#991b1b', fontSize: 13 }}>{m.name}</span>
+                      <span style={{ ...muted, fontSize: 12 }}> — ingen match hittad</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Audit */}
         {tab === 'audit' && (
