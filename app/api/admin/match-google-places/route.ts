@@ -126,8 +126,19 @@ export async function POST(req: Request) {
   const matched: { id: number; bar_name: string; google_name: string; similarity: number; dist: number; place_id: string }[] = [];
   const unmatched: { id: number; name: string }[] = [];
   const skipped: { id: number; bar_name: string; google_name: string; similarity: number }[] = [];
+  let debugFirst: unknown = null;
 
-  for (const bar of bars ?? []) {
+  for (const bar of (bars ?? []).slice(0, dryRun ? undefined : undefined)) {
+    // Capture raw API response for the first bar to help diagnose issues
+    if (!debugFirst) {
+      const testRes = await fetch('https://places.googleapis.com/v1/places:searchText', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': apiKey, 'X-Goog-FieldMask': FIELD_MASK },
+        body: JSON.stringify({ textQuery: bar.name, regionCode: 'SE', maxResultCount: 3 }),
+      });
+      debugFirst = { status: testRes.status, bar: bar.name, body: await testRes.json() };
+    }
+
     const result = await findGooglePlace(bar.lat, bar.lng, bar.name, apiKey);
     await sleep(100);
 
@@ -160,5 +171,6 @@ export async function POST(req: Request) {
     unmatched: unmatched.length,
     skipped_low_confidence: skipped.length,
     results: { matched, unmatched, skipped },
+    debug: debugFirst,
   });
 }
