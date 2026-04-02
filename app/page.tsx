@@ -513,7 +513,8 @@ export default function Page() {
 
     const { data: barsData, error: barsErr } = await supabase
       .from(barsTable)
-      .select('id,name,lat,lng,source,source_id,no_na_beer,no_na_reported_at,venue_type,opening_hours,address')
+      .select('id,name,lat,lng,source,source_id,no_na_beer,no_na_reported_at,venue_type,opening_hours,address,permanently_closed')
+      .neq('permanently_closed', true)
       .order('id', { ascending: true });
 
     console.log('barsData:', barsData?.length, barsErr);
@@ -1001,8 +1002,9 @@ export default function Page() {
         name: place.name,
         lat: place.lat,
         lng: place.lng,
-        source: 'osm',
+        source: 'google_places',
         source_id: place.google_place_id,
+        google_place_id: place.google_place_id,
         address: place.address,
         demo: isDemoMode,
       }),

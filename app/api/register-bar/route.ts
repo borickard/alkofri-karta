@@ -27,6 +27,7 @@ export async function POST(req: Request) {
     const source_id_raw = body.source_id ?? body.sourceId ?? null;
     const source_id = source_id_raw === null ? null : String(source_id_raw);
     const source = body.source ? String(body.source) : 'maptiler';
+    const google_place_id = body.google_place_id ? String(body.google_place_id) : null;
     const venue_type = body.venue_type ? String(body.venue_type) : null;
     const opening_hours = body.opening_hours ? String(body.opening_hours).trim() : null;
     const address = body.address ? String(body.address) : null;
@@ -45,6 +46,7 @@ export async function POST(req: Request) {
         venue_type,
         opening_hours,
         ...(address !== null ? { address } : {}),
+        ...(google_place_id !== null ? { google_place_id } : {}),
       }, { onConflict: 'source,source_id' })
       .select('id')
       .single();
