@@ -35,7 +35,7 @@ export async function GET(req: Request) {
       body: JSON.stringify({
         textQuery: q,
         locationBias: {
-          circle: { center: { latitude: lat, longitude: lng }, radiusMeters: 50000 },
+          circle: { center: { latitude: lat, longitude: lng }, radius: 50000 },
         },
         languageCode: 'sv',
         regionCode: 'SE',

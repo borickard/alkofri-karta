@@ -73,7 +73,7 @@ async function findGooglePlace(lat: number, lng: number, name: string, apiKey: s
     body: JSON.stringify({
       includedTypes: ['bar', 'restaurant', 'night_club', 'cafe'],
       maxResultCount: 20,
-      locationRestriction: { circle: { center: { latitude: lat, longitude: lng }, radiusMeters: 300 } },
+      locationRestriction: { circle: { center: { latitude: lat, longitude: lng }, radius: 300 } },
     }),
   });
   if (nearbyRes.ok) {
@@ -88,7 +88,7 @@ async function findGooglePlace(lat: number, lng: number, name: string, apiKey: s
     headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': apiKey, 'X-Goog-FieldMask': FIELD_MASK },
     body: JSON.stringify({
       textQuery: name,
-      locationBias: { circle: { center: { latitude: lat, longitude: lng }, radiusMeters: 2000 } },
+      locationBias: { circle: { center: { latitude: lat, longitude: lng }, radius: 2000 } },
       regionCode: 'SE',
       maxResultCount: 5,
     }),
@@ -137,7 +137,7 @@ export async function POST(req: Request) {
         body: JSON.stringify({
           includedTypes: ['bar', 'restaurant', 'night_club', 'cafe'],
           maxResultCount: 20,
-          locationRestriction: { circle: { center: { latitude: bar.lat, longitude: bar.lng }, radiusMeters: 300 } },
+          locationRestriction: { circle: { center: { latitude: bar.lat, longitude: bar.lng }, radius: 300 } },
         }),
       });
       const nearbyBody = await nearbyRes.json();
@@ -146,7 +146,7 @@ export async function POST(req: Request) {
       const textRes = await fetch('https://places.googleapis.com/v1/places:searchText', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': apiKey, 'X-Goog-FieldMask': FIELD_MASK },
-        body: JSON.stringify({ textQuery: bar.name, locationBias: { circle: { center: { latitude: bar.lat, longitude: bar.lng }, radiusMeters: 2000 } }, regionCode: 'SE', maxResultCount: 5 }),
+        body: JSON.stringify({ textQuery: bar.name, locationBias: { circle: { center: { latitude: bar.lat, longitude: bar.lng }, radius: 2000 } }, regionCode: 'SE', maxResultCount: 5 }),
       });
       const textBody = await textRes.json();
       const textPick = pickBest((textBody.places ?? []) as GooglePlace[], bar.lat, bar.lng, bar.name);
