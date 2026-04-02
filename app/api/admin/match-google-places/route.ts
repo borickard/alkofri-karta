@@ -128,15 +128,34 @@ export async function POST(req: Request) {
   const skipped: { id: number; bar_name: string; google_name: string; similarity: number }[] = [];
   let debugFirst: unknown = null;
 
-  for (const bar of (bars ?? []).slice(0, dryRun ? undefined : undefined)) {
-    // Capture raw API response for the first bar to help diagnose issues
+  for (const bar of bars ?? []) {
     if (!debugFirst) {
-      const testRes = await fetch('https://places.googleapis.com/v1/places:searchText', {
+      // Step-by-step debug for first bar
+      const nearbyRes = await fetch('https://places.googleapis.com/v1/places:searchNearby', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': apiKey, 'X-Goog-FieldMask': FIELD_MASK },
-        body: JSON.stringify({ textQuery: bar.name, regionCode: 'SE', maxResultCount: 3 }),
+        body: JSON.stringify({
+          includedTypes: ['bar', 'restaurant', 'night_club', 'cafe'],
+          maxResultCount: 20,
+          locationRestriction: { circle: { center: { latitude: bar.lat, longitude: bar.lng }, radiusMeters: 300 } },
+        }),
       });
-      debugFirst = { status: testRes.status, bar: bar.name, body: await testRes.json() };
+      const nearbyBody = await nearbyRes.json();
+      const nearbyPick = pickBest((nearbyBody.places ?? []) as GooglePlace[], bar.lat, bar.lng, bar.name);
+
+      const textRes = await fetch('https://places.googleapis.com/v1/places:searchText', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': apiKey, 'X-Goog-FieldMask': FIELD_MASK },
+        body: JSON.stringify({ textQuery: bar.name, locationBias: { circle: { center: { latitude: bar.lat, longitude: bar.lng }, radiusMeters: 2000 } }, regionCode: 'SE', maxResultCount: 5 }),
+      });
+      const textBody = await textRes.json();
+      const textPick = pickBest((textBody.places ?? []) as GooglePlace[], bar.lat, bar.lng, bar.name);
+
+      debugFirst = {
+        bar: bar.name, lat: bar.lat, lng: bar.lng,
+        nearby: { status: nearbyRes.status, placeCount: (nearbyBody.places ?? []).length, pick: nearbyPick },
+        text: { status: textRes.status, placeCount: (textBody.places ?? []).length, pick: textPick },
+      };
     }
 
     const result = await findGooglePlace(bar.lat, bar.lng, bar.name, apiKey);
