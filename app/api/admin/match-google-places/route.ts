@@ -38,51 +38,67 @@ function nameSimilarity(a: string, b: string): number {
 
 function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
 
+const FIELD_MASK = 'places.id,places.displayName,places.location,places.businessStatus';
+
+function pickBest(places: GooglePlace[], lat: number, lng: number, name: string) {
+  const candidates = places.filter(p => p.businessStatus !== 'CLOSED_PERMANENTLY' && p.location && p.displayName);
+  if (!candidates.length) return null;
+  let best: GooglePlace | null = null;
+  let bestScore = -Infinity;
+  for (const p of candidates) {
+    const dist = metersDist(lat, lng, p.location!.latitude, p.location!.longitude);
+    const sim = nameSimilarity(name, p.displayName!.text);
+    const score = sim * 1000 - dist;
+    if (score > bestScore) { bestScore = score; best = p; }
+  }
+  if (!best) return null;
+  return {
+    place_id: best.id,
+    name: best.displayName!.text,
+    similarity: nameSimilarity(name, best.displayName!.text),
+    dist: Math.round(metersDist(lat, lng, best.location!.latitude, best.location!.longitude)),
+  };
+}
+
 async function findGooglePlace(lat: number, lng: number, name: string, apiKey: string): Promise<{
   place_id: string;
   name: string;
   similarity: number;
   dist: number;
 } | null> {
-  const r = await fetch('https://places.googleapis.com/v1/places:searchNearby', {
+  // Step 1: nearby search within 300m (no type filter to avoid invalid type errors)
+  const nearbyRes = await fetch('https://places.googleapis.com/v1/places:searchNearby', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Goog-Api-Key': apiKey,
-      'X-Goog-FieldMask': 'places.id,places.displayName,places.location,places.businessStatus,places.formattedAddress',
-    },
+    headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': apiKey, 'X-Goog-FieldMask': FIELD_MASK },
     body: JSON.stringify({
-      includedTypes: ['bar', 'pub', 'restaurant', 'night_club', 'cafe', 'food'],
-      maxResultCount: 10,
-      locationRestriction: {
-        circle: { center: { latitude: lat, longitude: lng }, radiusMeters: 150 },
-      },
+      includedTypes: ['bar', 'restaurant', 'night_club', 'cafe'],
+      maxResultCount: 20,
+      locationRestriction: { circle: { center: { latitude: lat, longitude: lng }, radiusMeters: 300 } },
     }),
   });
-
-  if (!r.ok) return null;
-  const data = await r.json() as { places?: GooglePlace[] };
-  const places = (data.places ?? []).filter(p => p.businessStatus !== 'CLOSED_PERMANENTLY' && p.location && p.displayName);
-
-  if (!places.length) return null;
-
-  let best: GooglePlace | null = null;
-  let bestScore = -Infinity;
-
-  for (const p of places) {
-    const dist = metersDist(lat, lng, p.location!.latitude, p.location!.longitude);
-    const sim = nameSimilarity(name, p.displayName!.text);
-    // Weight: name match matters most, distance as tiebreaker
-    const score = sim * 1000 - dist;
-    if (score > bestScore) { bestScore = score; best = p; }
+  if (nearbyRes.ok) {
+    const data = await nearbyRes.json() as { places?: GooglePlace[] };
+    const result = pickBest(data.places ?? [], lat, lng, name);
+    if (result) return result;
   }
 
-  if (!best) return null;
+  // Step 2: fallback — text search by name biased toward the coordinates
+  const textRes = await fetch('https://places.googleapis.com/v1/places:searchText', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': apiKey, 'X-Goog-FieldMask': FIELD_MASK },
+    body: JSON.stringify({
+      textQuery: name,
+      locationBias: { circle: { center: { latitude: lat, longitude: lng }, radiusMeters: 2000 } },
+      regionCode: 'SE',
+      maxResultCount: 5,
+    }),
+  });
+  if (textRes.ok) {
+    const data = await textRes.json() as { places?: GooglePlace[] };
+    return pickBest(data.places ?? [], lat, lng, name);
+  }
 
-  const sim = nameSimilarity(name, best.displayName!.text);
-  const dist = metersDist(lat, lng, best.location!.latitude, best.location!.longitude);
-
-  return { place_id: best.id, name: best.displayName!.text, similarity: sim, dist };
+  return null;
 }
 
 export async function POST(req: Request) {
