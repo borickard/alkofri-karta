@@ -19,6 +19,7 @@ type Bar = {
   venue_type: string | null;
   opening_hours: string | null;
   address: string | null;
+  google_place_id: string | null;
 };
 
 type LatestPrice = {
@@ -459,29 +460,8 @@ export default function Page() {
   const [tierRanges, setTierRanges] = useState<Record<PriceTier, { min: number; max: number } | null>>({ green: null, yellow: null, red: null });
   const thresholdsRef = useRef<Thresholds>({ low: 35, high: 45 });
 
-  async function fetchAddress(lat: number, lng: number, barId?: number | null) {
-    setAddress(null);
-    try {
-      const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`, {
-        headers: { 'Accept-Language': 'sv' },
-      });
-      const data = await r.json() as { address?: { road?: string; house_number?: string } };
-      const road = data?.address?.road;
-      if (!road) return;
-      let num = data?.address?.house_number;
-      if (!num) num = await fetchHouseNumberOverpass(lat, lng, road) ?? undefined;
-      const addr = num ? `${road} ${num}` : road;
-      setAddress(addr);
-      if (barId) {
-        fetch('/api/patch-bar', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ bar_id: barId, address: addr, demo: isDemoMode }),
-        }).then(r => r.json()).then(j => {
-          if (j.ok) setBars(prev => prev.map(b => b.id === barId ? { ...b, address: addr } : b));
-        }).catch(() => {});
-      }
-    } catch {}
+  function fetchAddress(addr: string | null) {
+    setAddress(addr);
   }
 
   function fetchAndStoreOH(lat: number, lng: number, barId: number | null, name: string | null | undefined, onResult: (oh: string | null) => void) {
@@ -513,7 +493,7 @@ export default function Page() {
 
     const { data: barsData, error: barsErr } = await supabase
       .from(barsTable)
-      .select('id,name,lat,lng,source,source_id,no_na_beer,no_na_reported_at,venue_type,opening_hours,address,permanently_closed')
+      .select('id,name,lat,lng,source,source_id,no_na_beer,no_na_reported_at,venue_type,opening_hours,address,permanently_closed,google_place_id')
       .neq('permanently_closed', true)
       .order('id', { ascending: true });
 
@@ -533,6 +513,7 @@ export default function Page() {
         venue_type?: unknown;
         opening_hours?: unknown;
         address?: unknown;
+        google_place_id?: unknown;
       };
 
       return {
@@ -547,6 +528,7 @@ export default function Page() {
         venue_type: (rr.venue_type as string | null | undefined) ?? null,
         opening_hours: (rr.opening_hours as string | null | undefined) ?? null,
         address: (rr.address as string | null | undefined) ?? null,
+        google_place_id: (rr.google_place_id as string | null | undefined) ?? null,
       };
     });
 
@@ -673,11 +655,7 @@ export default function Page() {
         track('Location Opened');
         loadHistory(b.id).catch(console.error);
         focusPoint(b.lng, b.lat);
-        if (b.address) {
-          setAddress(b.address);
-        } else {
-          fetchAddress(b.lat, b.lng, b.id);
-        }
+        fetchAddress(b.address);
 
         if (!b.opening_hours) {
           fetchAndStoreOH(b.lat, b.lng, b.id, b.name, oh => {
@@ -1054,11 +1032,7 @@ export default function Page() {
     window.history.replaceState(null, '', buildBarUrl(b.id));
     loadHistory(b.id).catch(console.error);
     focusPoint(b.lng, b.lat);
-    if (b.address) {
-      setAddress(b.address);
-    } else {
-      fetchAddress(b.lat, b.lng, b.id);
-    }
+    fetchAddress(b.address);
     if (!b.opening_hours) {
       fetchAndStoreOH(b.lat, b.lng, b.id, b.name, oh => {
         if (oh) setBars(prev => prev.map(bar => bar.id === b.id ? { ...bar, opening_hours: oh } : bar));
@@ -1175,7 +1149,7 @@ export default function Page() {
       setPriceInput('');
       setPriceView('confirm');
       focusPoint(cand.lng, cand.lat);
-      fetchAddress(cand.lat, cand.lng);
+      fetchAddress(null);
 
       // Register bar immediately so it gets an id and becomes linkable, then fetch OH
       fetch('/api/register-bar', {
@@ -1242,11 +1216,7 @@ export default function Page() {
             setPriceView('confirm');
             await loadHistory(bar.id);
             focusPoint(bar.lng, bar.lat, 16);
-            if (bar.address) {
-              setAddress(bar.address);
-            } else {
-              fetchAddress(bar.lat, bar.lng, bar.id);
-            }
+            fetchAddress(bar.address);
             if (!bar.opening_hours) {
               fetchAndStoreOH(bar.lat, bar.lng, bar.id, bar.name, oh => {
                 if (oh) setBars(prev => prev.map(b => b.id === bar.id ? { ...b, opening_hours: oh } : b));
@@ -1438,6 +1408,29 @@ export default function Page() {
                 aria-label="Stäng"
               >✕</button>
             </div>
+
+            {/* Address + opening hours */}
+            {(() => {
+              const bar = selectedBar;
+              const addr = bar?.address ?? address;
+              const oh = bar?.opening_hours;
+              const placeId = bar?.google_place_id;
+              const mapsUrl = placeId
+                ? `https://www.google.com/maps/place/?q=place_id:${placeId}`
+                : addr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}` : null;
+              if (!addr && !oh) return null;
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontFamily: 'var(--font-body)', fontSize: 13, color: '#6B7280' }}>
+                  {addr && mapsUrl && (
+                    <a href={mapsUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb', textDecoration: 'none', fontWeight: 500 }}>
+                      {addr} ↗
+                    </a>
+                  )}
+                  {addr && !mapsUrl && <span>{addr}</span>}
+                  {oh && <span style={{ whiteSpace: 'pre-wrap' }}>{oh.replace(/; /g, '\n')}</span>}
+                </div>
+              );
+            })()}
 
             {status ? <div className={styles.status}>{status}</div> : null}
 

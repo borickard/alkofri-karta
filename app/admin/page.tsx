@@ -26,19 +26,6 @@ type PriceRow = {
 
 type SortKey = 'newest' | 'oldest' | 'highest' | 'lowest';
 
-type MatchResult = {
-  dry_run: boolean;
-  total: number;
-  matched: number;
-  unmatched: number;
-  skipped_low_confidence: number;
-  results: {
-    matched: { id: number; bar_name: string; google_name: string; similarity: number; dist: number; place_id: string }[];
-    unmatched: { id: number; name: string }[];
-    skipped: { id: number; bar_name: string; google_name: string; similarity: number }[];
-  };
-};
-
 const card = (extra?: CSSProperties): CSSProperties => ({
   background: '#ffffff',
   border: '1px solid #e5e7eb',
@@ -137,8 +124,7 @@ export default function AdminPage() {
   const [prices, setPrices] = useState<PriceRow[]>([]);
   const [audit, setAudit] = useState<AuditRow[]>([]);
   const [includeDeleted, setIncludeDeleted] = useState(false);
-  const [matchResult, setMatchResult] = useState<MatchResult | null>(null);
-  const [matchLoading, setMatchLoading] = useState(false);
+  const [barsWithPrices, setBarsWithPrices] = useState<number | null>(null);
 
   const headline = useMemo(() => (tab === 'prices' ? 'Prishistorik' : 'Audit-logg'), [tab]);
 
@@ -178,6 +164,12 @@ export default function AdminPage() {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    fetch('/api/admin/stats').then(r => r.json()).then(j => {
+      if (j.ok) setBarsWithPrices(j.barsWithPrices);
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     window.history.replaceState(null, '', isDemo ? '?demo' : window.location.pathname);
@@ -221,47 +213,6 @@ export default function AdminPage() {
     }
   }
 
-  async function backfillHours() {
-    if (!confirm('Hämta öppettider för alla locations utan opening_hours? Kan ta flera minuter.')) return;
-    setStatus('Hämtar öppettider… (detta tar ett tag)');
-    setLoading(true);
-    try {
-      const r = await fetch('/api/admin/backfill-hours', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ demo: isDemo, limit: 200 }),
-      });
-      const j = await r.json();
-      if (!j.ok) throw new Error(j.error || 'Misslyckades');
-      setStatus(`Klart: ${j.updated} uppdaterade, ${j.notFound} saknade data (av ${j.total} locations).`);
-    } catch (e: unknown) {
-      setStatus(e instanceof Error ? e.message : 'Fel');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function runMatch(dryRun: boolean) {
-    console.log('runMatch called', dryRun);
-    if (!dryRun && !confirm('Spara alla matchningar mot Google Places? Detta uppdaterar source och google_place_id på matchade barer.')) return;
-    setMatchLoading(true);
-    setMatchResult(null);
-    try {
-      const r = await fetch('/api/admin/match-google-places', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dry_run: dryRun, min_similarity: 0.5 }),
-      });
-      const j = await r.json() as MatchResult & { ok: boolean; error?: string };
-      if (!j.ok) throw new Error(j.error || 'Misslyckades');
-      setMatchResult(j);
-    } catch (e: unknown) {
-      setStatus(e instanceof Error ? e.message : 'Fel');
-    } finally {
-      setMatchLoading(false);
-    }
-  }
-
   async function bulkDeleteLastDays() {
     if (!confirm(`Rensa priser från senaste ${days} dagar (soft delete)?`)) return;
     setStatus(`Rensar senaste ${days} dagar...`);
@@ -300,6 +251,11 @@ export default function AdminPage() {
                 ← Tillbaka till sajten
               </a>
               <div style={{ marginTop: 2, ...muted }}>{headline}</div>
+              {barsWithPrices !== null && (
+                <div style={{ marginTop: 4, fontSize: 13, color: '#065f46', fontWeight: 600 }}>
+                  {barsWithPrices} platser med priser
+                </div>
+              )}
             </div>
             <div style={{ display: 'flex', gap: 6 }}>
               <button style={btn(tab === 'prices' ? 'dark' : 'light')} onClick={() => setTab('prices')}>Priser</button>
@@ -338,110 +294,6 @@ export default function AdminPage() {
             <button style={btn('danger')} onClick={bulkDeleteAll}>
               Rensa alla
             </button>
-          </div>
-
-          <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #e5e7eb' }}>
-            <button style={btn('light')} onClick={backfillHours} disabled={loading}>
-              Fyll på öppettider från OSM
-            </button>
-            <span style={{ ...muted, marginLeft: 10 }}>Hämtar opening_hours för locations som saknar det</span>
-          </div>
-
-          <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #e5e7eb' }}>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <button style={btn('light')} onClick={() => runMatch(true)} disabled={matchLoading}>
-                {matchLoading ? 'Söker…' : 'Matcha mot Google Places (dry run)'}
-              </button>
-              {matchResult?.dry_run && (
-                <button style={btn('dark')} onClick={() => runMatch(false)} disabled={matchLoading}>
-                  Spara matchningar
-                </button>
-              )}
-              {!matchResult?.dry_run && matchResult && (
-                <span style={{ ...muted }}>Sparat!</span>
-              )}
-            </div>
-            <span style={{ ...muted, marginTop: 4, display: 'block' }}>
-              Kopplar befintliga barer utan google_place_id till Google Places via koordinater och namnlikhet
-            </span>
-
-            {matchResult && (
-              <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-                  <span style={label}>Totalt: {matchResult.total}</span>
-                  <span style={{ ...label, color: '#065f46' }}>Matchade: {matchResult.matched}</span>
-                  <span style={{ ...label, color: '#92400e' }}>Osäkra: {matchResult.skipped_low_confidence}</span>
-                  <span style={{ ...label, color: '#b91c1c' }}>Ej hittade: {matchResult.unmatched}</span>
-                </div>
-
-                {matchResult.results.matched.length > 0 && (
-                  <div>
-                    <div style={{ ...label, marginBottom: 6 }}>Matchade</div>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                      <thead>
-                        <tr style={{ background: '#f9fafb' }}>
-                          <th style={{ textAlign: 'left', padding: '6px 8px', ...muted }}>Bar i DB</th>
-                          <th style={{ textAlign: 'left', padding: '6px 8px', ...muted }}>Google Places</th>
-                          <th style={{ textAlign: 'right', padding: '6px 8px', ...muted }}>Likhet</th>
-                          <th style={{ textAlign: 'right', padding: '6px 8px', ...muted }}>Avstånd</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {matchResult.results.matched.map(m => (
-                          <tr key={m.id} style={{ borderTop: '1px solid #e5e7eb' }}>
-                            <td style={{ padding: '6px 8px', color: '#111827', fontWeight: 500 }}>{m.bar_name}</td>
-                            <td style={{ padding: '6px 8px', color: '#111827' }}>{m.google_name}</td>
-                            <td style={{ padding: '6px 8px', textAlign: 'right', color: m.similarity >= 0.8 ? '#065f46' : '#92400e', fontWeight: 600 }}>
-                              {Math.round(m.similarity * 100)}%
-                            </td>
-                            <td style={{ padding: '6px 8px', textAlign: 'right', ...muted }}>{m.dist} m</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-
-                {matchResult.results.skipped.length > 0 && (
-                  <div>
-                    <div style={{ ...label, marginBottom: 6, color: '#92400e' }}>Osäkra matchningar (sparas ej)</div>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                      <thead>
-                        <tr style={{ background: '#f9fafb' }}>
-                          <th style={{ textAlign: 'left', padding: '6px 8px', ...muted }}>Bar i DB</th>
-                          <th style={{ textAlign: 'left', padding: '6px 8px', ...muted }}>Närmaste Google</th>
-                          <th style={{ textAlign: 'right', padding: '6px 8px', ...muted }}>Likhet</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {matchResult.results.skipped.map(s => (
-                          <tr key={s.id} style={{ borderTop: '1px solid #e5e7eb' }}>
-                            <td style={{ padding: '6px 8px', color: '#111827', fontWeight: 500 }}>{s.bar_name}</td>
-                            <td style={{ padding: '6px 8px', color: '#111827' }}>{s.google_name}</td>
-                            <td style={{ padding: '6px 8px', textAlign: 'right', color: '#b91c1c', fontWeight: 600 }}>
-                              {Math.round(s.similarity * 100)}%
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-
-                {matchResult.results.unmatched.length > 0 && (
-                  <div>
-                    <div style={{ ...label, marginBottom: 6, color: '#b91c1c' }}>Ej hittade i Google Places</div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                      {matchResult.results.unmatched.map(u => (
-                        <span key={u.id} style={{ background: '#fee2e2', color: '#b91c1c', borderRadius: 4, padding: '3px 8px', fontSize: 13 }}>
-                          {u.name}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
 
           {status && (
