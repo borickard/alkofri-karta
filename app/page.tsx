@@ -1005,7 +1005,7 @@ export default function Page() {
       setPriceView('confirm');
       window.history.replaceState(null, '', buildBarUrl(j.bar_id));
       loadHistory(j.bar_id).catch(console.error);
-      focusPoint(place.lng, place.lat);
+      focusPoint(place.lng, place.lat, 16);
       loadBarsAndPrices().catch(console.error);
       fetchAndStoreOH(place.lat, place.lng, j.bar_id, place.name, oh => {
         if (oh) setBars(prev => prev.map(b => b.id === j.bar_id ? { ...b, opening_hours: oh } : b));
@@ -1033,7 +1033,7 @@ export default function Page() {
     setUndoAction(null);
     window.history.replaceState(null, '', buildBarUrl(b.id));
     loadHistory(b.id).catch(console.error);
-    focusPoint(b.lng, b.lat);
+    focusPoint(b.lng, b.lat, 16);
     fetchAddress(b.address);
     if (!b.opening_hours) {
       fetchAndStoreOH(b.lat, b.lng, b.id, b.name, oh => {
