@@ -242,6 +242,7 @@ export default function AdminPage() {
   }
 
   async function runMatch(dryRun: boolean) {
+    console.log('runMatch called', dryRun);
     if (!dryRun && !confirm('Spara alla matchningar mot Google Places? Detta uppdaterar source och google_place_id på matchade barer.')) return;
     setMatchLoading(true);
     setMatchResult(null);
