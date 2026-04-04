@@ -48,6 +48,10 @@ No test suite is configured.
 
 ≤35 kr → green · 36–45 kr → yellow · >45 kr → red
 
+## Planned features
+
+- **Beer name field** — Optional field in the price submission form. When a beer name has been submitted more than once, it appears as an autocomplete suggestion when the user starts typing (fuzzy/similarity match). Storing the name alongside the price record.
+
 ## Environment variables
 
 ```bash
