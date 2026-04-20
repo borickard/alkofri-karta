@@ -23,9 +23,11 @@ type Bar = {
 };
 
 type LatestPrice = {
+  id: number;
   bar_id: number;
   price_sek: number;
   created_at: string;
+  beverage_name: string | null;
 };
 
 type Candidate = {
@@ -415,6 +417,13 @@ export default function Page() {
   useEffect(() => { latestPricesRef.current = latestPrices; }, [latestPrices]);
   useEffect(() => { track('pageview'); }, []);
 
+  useEffect(() => {
+    fetch(`/api/beverage-names${isDemoMode ? '?demo' : ''}`)
+      .then(r => r.json())
+      .then(j => { if (j.ok) setBeverageSuggestions(j.names); })
+      .catch(() => {});
+  }, [isDemoMode]);
+
   const [welcomeOpen, setWelcomeOpen] = useState(!searchParams.has('bar'));
   const [omOpen, setOmOpen] = useState(() => pathname === '/info');
   const [searchOpen, setSearchOpen] = useState(false);
@@ -433,9 +442,10 @@ export default function Page() {
     : true;
   const [panelOpen, setPanelOpen] = useState(false);
   const [priceInput, setPriceInput] = useState('');
+  const [beverageNameInput, setBeverageNameInput] = useState('');
   const [status, setStatus] = useState('');
-  const [history, setHistory] = useState<LatestPrice[]>([]);
-  const [priceView, setPriceView] = useState<'confirm' | 'edit'>('confirm');
+  const [beverages, setBeverages] = useState<LatestPrice[]>([]);
+  const [beverageSuggestions, setBeverageSuggestions] = useState<string[]>([]);
   const [undoAction, setUndoAction] = useState<{ type: 'price'; price_id: number; bar_id: number } | { type: 'no_na'; bar_id: number } | null>(null);
   const [ohLoading, setOhLoading] = useState(false);
   const [ohChecked, setOhChecked] = useState(false);
@@ -536,21 +546,26 @@ export default function Page() {
 
     const { data: pricesData, error: pricesErr } = await supabase
       .from(pricesTable)
-      .select('id,bar_id,price_sek,created_at,deleted_at')
+      .select('id,bar_id,price_sek,created_at,beverage_name')
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
-      .limit(2000);
+      .limit(5000);
 
     if (pricesErr) throw pricesErr;
 
     const latest = new Map<number, LatestPrice>();
     for (const p of pricesData ?? []) {
-      const bar_id = Number((p as { bar_id: unknown }).bar_id);
-      if (!latest.has(bar_id)) {
+      const pp = p as { id: unknown; bar_id: unknown; price_sek: unknown; created_at: unknown; beverage_name: unknown };
+      const bar_id = Number(pp.bar_id);
+      const price_sek = Number(pp.price_sek);
+      const existing = latest.get(bar_id);
+      if (!existing || price_sek < existing.price_sek) {
         latest.set(bar_id, {
+          id: Number(pp.id),
           bar_id,
-          price_sek: Number((p as { price_sek: unknown }).price_sek),
-          created_at: String((p as { created_at: unknown }).created_at),
+          price_sek,
+          created_at: String(pp.created_at),
+          beverage_name: pp.beverage_name != null ? String(pp.beverage_name) : null,
         });
       }
     }
@@ -562,24 +577,28 @@ export default function Page() {
     return barsRows;
   }
 
-  async function loadHistory(barId: number) {
+  async function loadBeverages(barId: number) {
     const pricesTable = isDemoMode ? 'prices_demo' : 'prices';
     const { data, error } = await supabase
       .from(pricesTable)
-      .select('id,bar_id,price_sek,created_at,deleted_at')
+      .select('id,bar_id,price_sek,created_at,beverage_name')
       .eq('bar_id', barId)
       .is('deleted_at', null)
-      .order('created_at', { ascending: false })
-      .limit(5);
+      .order('created_at', { ascending: false });
 
     if (error) throw error;
 
-    setHistory(
-      (data ?? []).map((r) => ({
-        bar_id: Number((r as { bar_id: unknown }).bar_id),
-        price_sek: Number((r as { price_sek: unknown }).price_sek),
-        created_at: String((r as { created_at: unknown }).created_at),
-      })),
+    setBeverages(
+      (data ?? []).map((r) => {
+        const rr = r as { id: unknown; bar_id: unknown; price_sek: unknown; created_at: unknown; beverage_name: unknown };
+        return {
+          id: Number(rr.id),
+          bar_id: Number(rr.bar_id),
+          price_sek: Number(rr.price_sek),
+          created_at: String(rr.created_at),
+          beverage_name: rr.beverage_name != null ? String(rr.beverage_name) : null,
+        };
+      }),
     );
   }
 
@@ -652,10 +671,10 @@ export default function Page() {
         setPanelOpen(true);
         setStatus('');
         setPriceInput('');
-        setPriceView('confirm');
+        setBeverageNameInput('');
         window.history.replaceState(null, '', buildBarUrl(b.id));
         track('Location Opened');
-        loadHistory(b.id).catch(console.error);
+        loadBeverages(b.id).catch(console.error);
         focusPoint(b.lng, b.lat);
         fetchAddress(b.address);
 
@@ -814,17 +833,17 @@ export default function Page() {
     const r = await fetch('/api/price', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bar_id: selectedBar.id, price_sek: p, demo: isDemoMode }),
+      body: JSON.stringify({ bar_id: selectedBar.id, price_sek: p, beverage_name: beverageNameInput.trim() || null, demo: isDemoMode }),
     });
     const j = await r.json();
     if (!j.ok) { setStatus(`Fel: ${j.error || 'okänt fel'}`); return; }
     track(hadPrice ? 'Price Updated' : 'Price Added');
     setStatus('');
     setPriceInput('');
+    setBeverageNameInput('');
     setUndoAction({ type: 'price', price_id: j.price.id, bar_id: selectedBar.id });
     await loadBarsAndPrices();
-    await loadHistory(selectedBar.id);
-    setPriceView('confirm');
+    await loadBeverages(selectedBar.id);
   }
 
   async function savePriceCandidate() {
@@ -835,20 +854,20 @@ export default function Page() {
     const r = await fetch('/api/price', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...candidate, price_sek: p, demo: isDemoMode }),
+      body: JSON.stringify({ ...candidate, price_sek: p, beverage_name: beverageNameInput.trim() || null, demo: isDemoMode }),
     });
     const j = await r.json();
     if (!j.ok) { setStatus(`Fel: ${j.error || 'okänt fel'}`); return; }
     track('Price Added');
     setStatus('');
     setPriceInput('');
+    setBeverageNameInput('');
     await loadBarsAndPrices();
     if (j.bar_id) {
       setUndoAction({ type: 'price', price_id: j.price.id, bar_id: j.bar_id });
       setSelectedBarId(j.bar_id);
       window.history.replaceState(null, '', buildBarUrl(j.bar_id));
-      await loadHistory(j.bar_id);
-      setPriceView('confirm');
+      await loadBeverages(j.bar_id);
     }
     setCandidate(null);
   }
@@ -868,7 +887,7 @@ export default function Page() {
     setPriceInput('');
     setUndoAction({ type: 'no_na', bar_id: selectedBar.id });
     await loadBarsAndPrices();
-    await loadHistory(selectedBar.id);
+    await loadBeverages(selectedBar.id);
   }
 
   async function reportNoNaCandidate() {
@@ -909,23 +928,20 @@ export default function Page() {
     if (!j.ok) { setStatus(`Ångra misslyckades: ${j.error}`); return; }
     await loadBarsAndPrices();
     const barId = undoAction.bar_id;
-    await loadHistory(barId);
-    setPriceView('confirm');
+    await loadBeverages(barId);
   }
 
-  async function reportWrongPrice() {
+  async function reportWrongPrice(priceId?: number) {
     if (!selectedBar) return;
-    setStatus('Tar bort pris...');
     const r = await fetch('/api/report-wrong-price', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bar_id: selectedBar.id, demo: isDemoMode }),
+      body: JSON.stringify({ bar_id: selectedBar.id, price_id: priceId, demo: isDemoMode }),
     });
     const j = await r.json();
     if (!j.ok) { setStatus(`Fel: ${j.error || 'okänt fel'}`); return; }
-    setStatus('Borttagen.');
     await loadBarsAndPrices();
-    await loadHistory(selectedBar.id);
+    await loadBeverages(selectedBar.id);
   }
 
   function buildBarUrl(barId: number | null, colors?: Set<PriceTier>, openNow?: boolean) {
@@ -1000,11 +1016,11 @@ export default function Page() {
       setSelectedBarId(j.bar_id);
       setPanelOpen(true);
       setStatus('');
-      setHistory([]);
+      setBeverages([]);
       setPriceInput('');
-      setPriceView('confirm');
+      setBeverageNameInput('');
       window.history.replaceState(null, '', buildBarUrl(j.bar_id));
-      loadHistory(j.bar_id).catch(console.error);
+      loadBeverages(j.bar_id).catch(console.error);
       focusPoint(place.lng, place.lat, 16);
       loadBarsAndPrices().catch(console.error);
       fetchAndStoreOH(place.lat, place.lng, j.bar_id, place.name, oh => {
@@ -1027,12 +1043,12 @@ export default function Page() {
     setSelectedBarId(b.id);
     setPanelOpen(true);
     setStatus('');
-    setHistory([]);
+    setBeverages([]);
     setPriceInput('');
-    setPriceView('confirm');
+    setBeverageNameInput('');
     setUndoAction(null);
     window.history.replaceState(null, '', buildBarUrl(b.id));
-    loadHistory(b.id).catch(console.error);
+    loadBeverages(b.id).catch(console.error);
     focusPoint(b.lng, b.lat, 16);
     fetchAddress(b.address);
     if (!b.opening_hours) {
@@ -1050,9 +1066,9 @@ export default function Page() {
     setSelectedBarId(null);
     setCandidate(null);
     setStatus('');
-    setHistory([]);
+    setBeverages([]);
     setPriceInput('');
-    setPriceView('confirm');
+    setBeverageNameInput('');
     setUndoAction(null);
     setOhLoading(false);
     setOhChecked(false);
@@ -1147,9 +1163,9 @@ export default function Page() {
       setCandidate(cand);
       setPanelOpen(true);
       setStatus('');
-      setHistory([]);
+      setBeverages([]);
       setPriceInput('');
-      setPriceView('confirm');
+      setBeverageNameInput('');
       focusPoint(cand.lng, cand.lat);
       fetchAddress(null);
 
@@ -1215,8 +1231,7 @@ export default function Page() {
           if (bar) {
             setSelectedBarId(bar.id);
             setPanelOpen(true);
-            setPriceView('confirm');
-            await loadHistory(bar.id);
+            await loadBeverages(bar.id);
             focusPoint(bar.lng, bar.lat, 16);
             fetchAddress(bar.address);
             if (!bar.opening_hours) {
@@ -1467,104 +1482,28 @@ export default function Page() {
 
             {status ? <div className={styles.status}>{status}</div> : null}
 
-            {/* Price section */}
+            {/* Beverages section */}
             {!locationInSweden ? (
               <p className={styles.status}>
                 Den här platsen är utanför Sverige och stöds inte än.
               </p>
             ) : (() => {
-              const lp = selectedBar ? latestPrices.get(selectedBar.id) : null;
-              const hasPrice = !!lp;
               const isNoNa = selectedBar?.no_na_beer;
 
-              if (isNoNa) {
-                // Already marked as no NA beer — show state + allow price correction
-                return (
-                  <>
-                    <div style={{
-                      background: '#FEF2F2',
-                      border: '2px solid #FECACA',
-                      borderRadius: 8,
-                      padding: '10px 14px',
-                      fontFamily: 'var(--font-body)',
-                      fontSize: 14,
-                      color: '#991B1B',
-                      fontWeight: 700,
-                    }}>
-                      ✕ Alkoholfri öl uppges saknas här
-                    </div>
-                    <div className={styles.fieldRow} style={{ flexWrap: 'nowrap', width: '100%' }}>
-                      <input
-                        className={styles.input}
-                        style={{ flex: 1, width: 'auto', minWidth: 0 }}
-                        inputMode="numeric"
-                        placeholder="Pris (10–150 kr)"
-                        value={priceInput}
-                        onChange={(e) => setPriceInput(e.target.value)}
-                        onKeyDown={onPanelKeyDown}
-                      />
-                      <button
-                        className={`${styles.btn} ${styles.btnDark}`}
-                        onClick={() => (selectedBar ? savePriceSelected() : savePriceCandidate())}
-                      >
-                        Lägg till pris
-                      </button>
-                    </div>
-                  </>
-                );
-              }
-
-              if (hasPrice && priceView === 'confirm') {
-                return (
-                  <>
-                    <div style={{
-                      background: '#f3f4f6',
-                      borderRadius: 8,
-                      padding: '10px 14px',
-                      display: 'flex',
-                      alignItems: 'baseline',
-                      gap: 5,
-                    }}>
-                      <span style={{
-                        fontFamily: 'var(--font-body)',
-                        fontSize: 30,
-                        fontWeight: 400,
-                        color: '#111827',
-                        lineHeight: 1,
-                      }}>{lp!.price_sek}</span>
-                      <span style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: '#111827', fontWeight: 600 }}>kr</span>
-                      <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#9CA3AF', marginLeft: 'auto' }}>{fmtShort(lp!.created_at)}</span>
-                    </div>
-                    <div className={styles.btnRow}>
-                      <button
-                        className={`${styles.btn} ${styles.btnDark}`}
-                        style={{ flex: 1 }}
-                        onClick={() => { setPriceView('edit'); setStatus(''); }}
-                      >
-                        Uppdatera pris
-                      </button>
-                      {!selectedBar?.no_na_beer && (
-                        <button
-                          className={styles.btn}
-                          style={{ flex: 1 }}
-                          onClick={() => (selectedBar ? reportNoNaSelected() : reportNoNaCandidate())}
-                        >
-                          ✕ Alkoholfri öl saknas
-                        </button>
-                      )}
-                    </div>
-                  </>
-                );
-              }
-
-              // No price, or edit mode
-              return (
-                <>
-                  {!hasPrice && (
-                    <div style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: '#6B7280' }}>
-                      Inga priser rapporterade än.
-                    </div>
-                  )}
+              const addForm = (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <input
+                    list="beverage-suggestions"
+                    className={styles.input}
+                    style={{ width: '100%' }}
+                    placeholder="Dryckens namn (valfritt)"
+                    value={beverageNameInput}
+                    onChange={(e) => setBeverageNameInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Escape') closePanel(); }}
+                  />
+                  <datalist id="beverage-suggestions">
+                    {beverageSuggestions.map(s => <option key={s} value={s} />)}
+                  </datalist>
                   <div className={styles.fieldRow} style={{ flexWrap: 'nowrap', width: '100%' }}>
                     <input
                       className={styles.input}
@@ -1579,34 +1518,72 @@ export default function Page() {
                       className={`${styles.btn} ${styles.btnDark}`}
                       onClick={() => (selectedBar ? savePriceSelected() : savePriceCandidate())}
                     >
-                      {hasPrice ? 'Spara nytt pris' : 'Lägg till pris'}
+                      Lägg till
                     </button>
-                    {hasPrice && (
-                      <button
-                        className={styles.btn}
-                        onClick={() => { setPriceView('confirm'); setStatus(''); setPriceInput(''); }}
-                      >
-                        Avbryt
-                      </button>
-                    )}
                   </div>
-                  {selectedBar && history.length > 0 && (
+                </div>
+              );
+
+              if (isNoNa) {
+                return (
+                  <>
+                    <div style={{
+                      background: '#FEF2F2',
+                      border: '2px solid #FECACA',
+                      borderRadius: 8,
+                      padding: '10px 14px',
+                      fontFamily: 'var(--font-body)',
+                      fontSize: 14,
+                      color: '#991B1B',
+                      fontWeight: 700,
+                    }}>
+                      ✕ Alkoholfri öl uppges saknas här
+                    </div>
+                    {addForm}
+                  </>
+                );
+              }
+
+              return (
+                <>
+                  {beverages.length === 0 && (
+                    <div style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: '#6B7280' }}>
+                      Inga drycker rapporterade än.
+                    </div>
+                  )}
+                  {beverages.length > 0 && (
                     <div className={styles.history}>
-                      <div className={styles.hint}>Senaste {history.length} priser</div>
-                      {history.map((h, idx) => (
-                        <div key={`${h.created_at}-${idx}`} className={styles.historyItem}>
-                          <div className={styles.historyLeft}>{h.price_sek} kr</div>
-                          <div className={styles.historyRight}>{fmtShort(h.created_at)}</div>
+                      {beverages.map(bev => (
+                        <div key={bev.id} className={styles.historyItem}>
+                          <div>
+                            <span className={styles.historyLeft}>
+                              {bev.beverage_name || 'Alkoholfri öl'}
+                            </span>
+                            <span style={{ fontSize: 13, color: '#374151', marginLeft: 8, fontWeight: 600 }}>
+                              {bev.price_sek} kr
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span className={styles.historyRight}>{fmtShort(bev.created_at)}</span>
+                            <button
+                              onClick={() => reportWrongPrice(bev.id)}
+                              title="Rapportera fel pris"
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#d1d5db', fontSize: 16, padding: '0 2px', lineHeight: 1 }}
+                            >
+                              ×
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
                   )}
+                  {addForm}
                 </>
               );
             })()}
 
-            {/* No NA beer button — only when bar has no price */}
-            {locationInSweden && !(selectedBar ? !!latestPrices.get(selectedBar.id) : false) && !selectedBar?.no_na_beer && (
+            {/* No NA beer button — only when no beverages reported */}
+            {locationInSweden && beverages.length === 0 && !selectedBar?.no_na_beer && (
               <button
                 className={styles.btn}
                 onClick={() => (selectedBar ? reportNoNaSelected() : reportNoNaCandidate())}

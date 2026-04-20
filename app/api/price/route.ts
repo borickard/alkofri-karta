@@ -37,6 +37,7 @@ export async function POST(req: Request) {
 
     const bar_id = body.bar_id ? Number(body.bar_id) : null;
     const price_sek = Number(body.price_sek);
+    const beverage_name = typeof body.beverage_name === 'string' && body.beverage_name.trim() ? body.beverage_name.trim() : null;
 
     if (!Number.isFinite(price_sek)) return jsonError('price_sek saknas.');
     if (price_sek < 10 || price_sek > 150) return jsonError('Pris måste vara 10-150 kr.');
@@ -107,8 +108,8 @@ export async function POST(req: Request) {
 
     const { data: priceRow, error: priceErr } = await supabase
       .from(pricesTable)
-      .insert({ bar_id: finalBarId, price_sek })
-      .select('id,bar_id,price_sek,created_at')
+      .insert({ bar_id: finalBarId, price_sek, beverage_name })
+      .select('id,bar_id,price_sek,created_at,beverage_name')
       .single();
 
     if (priceErr) return jsonError(`DB: ${priceErr.message}`, 500);

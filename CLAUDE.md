@@ -50,10 +50,17 @@ No test suite is configured.
 
 ## Planned features
 
-- **Multiple beverages per location** — Allow users to submit multiple non-alcoholic beverage entries per bar/restaurant. Each entry has a price and an optional free-text name (e.g. "Carlsberg alkoholfri", "Mikkeller Drink'in the Sun", "Läsk", "Alkoholfritt vin", "Red Bull"). Beverage type is unrestricted — any NA drink can be added.
-  - Names are optional but encouraged.
-  - When a name has been used multiple times across all submissions, it appears as an autocomplete suggestion (fuzzy/similarity match).
-  - Future: statistics view showing where specific named beverages are cheapest across all locations.
+- Future: statistics view showing where specific named beverages are cheapest across all locations.
+
+## Implemented features
+
+- **Multiple beverages per location** — Users can submit multiple non-alcoholic beverage entries per bar/restaurant. Each entry has a price (required, 10–150 kr) and an optional free-text name (e.g. "Carlsberg 0,0%", "Mikkeller Drink'in the Sun", "Läsk", "Red Bull"). Beverage type is unrestricted.
+  - Names are optional; shown as "Alkoholfri öl" if blank.
+  - When a name has been submitted 2+ times across all entries it appears as an autocomplete suggestion (HTML5 `<datalist>`).
+  - Map markers show the **lowest** active price per bar.
+  - Each beverage row has a × button to report/remove a wrong entry.
+  - DB migration: `supabase/migrations/add_beverage_name.sql` — adds `beverage_name text` column to `prices` and `prices_demo`.
+  - New API route: `GET /api/beverage-names` — returns names used 2+ times.
 
 ## Environment variables
 

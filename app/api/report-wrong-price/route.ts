@@ -36,22 +36,38 @@ export async function POST(req: Request) {
 
     const bar_id = Number(body.bar_id);
     if (!Number.isFinite(bar_id)) return jsonError('bar_id saknas.');
+    const price_id_param = body.price_id ? Number(body.price_id) : null;
 
     const userAgent = req.headers.get('user-agent') || null;
     const ip = getClientIp(req);
     const salt = process.env.IP_HASH_SALT || process.env.ADMIN_PASSWORD || 'fallback_salt';
     const ip_hash = ip ? sha256Hex(`${ip}|${salt}`) : null;
 
-    const { data: latest, error: latestErr } = await supabase
-      .from(pricesTable)
-      .select('id,bar_id,price_sek,created_at,deleted_at')
-      .eq('bar_id', bar_id)
-      .is('deleted_at', null)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    let latest: { id: number; price_sek: number } | null = null;
 
-    if (latestErr) return jsonError(`DB: ${latestErr.message}`, 500);
+    if (price_id_param) {
+      const { data, error } = await supabase
+        .from(pricesTable)
+        .select('id,price_sek')
+        .eq('id', price_id_param)
+        .eq('bar_id', bar_id)
+        .is('deleted_at', null)
+        .maybeSingle();
+      if (error) return jsonError(`DB: ${error.message}`, 500);
+      latest = data ?? null;
+    } else {
+      const { data, error: latestErr } = await supabase
+        .from(pricesTable)
+        .select('id,price_sek')
+        .eq('bar_id', bar_id)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (latestErr) return jsonError(`DB: ${latestErr.message}`, 500);
+      latest = data ?? null;
+    }
+
     if (!latest?.id) return jsonError('Inget pris att ta bort.', 404);
 
     const ts = new Date().toISOString();
