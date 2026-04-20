@@ -446,6 +446,7 @@ export default function Page() {
   const [status, setStatus] = useState('');
   const [beverages, setBeverages] = useState<LatestPrice[]>([]);
   const [beverageSuggestions, setBeverageSuggestions] = useState<string[]>([]);
+  const [editingBeverage, setEditingBeverage] = useState<LatestPrice | null>(null);
   const [undoAction, setUndoAction] = useState<{ type: 'price'; price_id: number; bar_id: number } | { type: 'no_na'; bar_id: number } | null>(null);
   const [ohLoading, setOhLoading] = useState(false);
   const [ohChecked, setOhChecked] = useState(false);
@@ -841,7 +842,16 @@ export default function Page() {
     setStatus('');
     setPriceInput('');
     setBeverageNameInput('');
-    setUndoAction({ type: 'price', price_id: j.price.id, bar_id: selectedBar.id });
+    if (editingBeverage) {
+      await fetch('/api/report-wrong-price', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bar_id: selectedBar.id, price_id: editingBeverage.id, demo: isDemoMode }),
+      });
+      setEditingBeverage(null);
+    } else {
+      setUndoAction({ type: 'price', price_id: j.price.id, bar_id: selectedBar.id });
+    }
     await loadBarsAndPrices();
     await loadBeverages(selectedBar.id);
   }
@@ -1046,6 +1056,7 @@ export default function Page() {
     setBeverages([]);
     setPriceInput('');
     setBeverageNameInput('');
+    setEditingBeverage(null);
     setUndoAction(null);
     window.history.replaceState(null, '', buildBarUrl(b.id));
     loadBeverages(b.id).catch(console.error);
@@ -1069,6 +1080,7 @@ export default function Page() {
     setBeverages([]);
     setPriceInput('');
     setBeverageNameInput('');
+    setEditingBeverage(null);
     setUndoAction(null);
     setOhLoading(false);
     setOhChecked(false);
@@ -1492,6 +1504,17 @@ export default function Page() {
 
               const addForm = (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {editingBeverage && (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12, color: '#6B7280' }}>
+                      <span>Uppdaterar pris</span>
+                      <button
+                        onClick={() => { setEditingBeverage(null); setPriceInput(''); setBeverageNameInput(''); }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 13, padding: 0 }}
+                      >
+                        Avbryt
+                      </button>
+                    </div>
+                  )}
                   <input
                     list="beverage-suggestions"
                     className={styles.input}
@@ -1518,7 +1541,7 @@ export default function Page() {
                       className={`${styles.btn} ${styles.btnDark}`}
                       onClick={() => (selectedBar ? savePriceSelected() : savePriceCandidate())}
                     >
-                      Lägg till
+                      {editingBeverage ? 'Uppdatera' : 'Lägg till'}
                     </button>
                   </div>
                 </div>
@@ -1553,28 +1576,42 @@ export default function Page() {
                   )}
                   {beverages.length > 0 && (
                     <div className={styles.history}>
-                      {beverages.map(bev => (
-                        <div key={bev.id} className={styles.historyItem}>
-                          <div>
-                            <span className={styles.historyLeft}>
-                              {bev.beverage_name || 'Alkoholfri öl'}
-                            </span>
-                            <span style={{ fontSize: 13, color: '#374151', marginLeft: 8, fontWeight: 600 }}>
-                              {bev.price_sek} kr
-                            </span>
+                      {beverages.map(bev => {
+                        const isEditing = editingBeverage?.id === bev.id;
+                        return (
+                          <div key={bev.id} className={styles.historyItem} style={isEditing ? { background: '#eff6ff', border: '1px solid #bfdbfe' } : {}}>
+                            <div>
+                              <span className={styles.historyLeft}>
+                                {bev.beverage_name || 'Alkoholfri öl'}
+                              </span>
+                              <span style={{ fontSize: 13, color: '#374151', marginLeft: 8, fontWeight: 600 }}>
+                                {bev.price_sek} kr
+                              </span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <span className={styles.historyRight}>{fmtShort(bev.created_at)}</span>
+                              <button
+                                onClick={() => {
+                                  setEditingBeverage(bev);
+                                  setBeverageNameInput(bev.beverage_name || '');
+                                  setPriceInput(String(bev.price_sek));
+                                }}
+                                title="Ändra pris"
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 13, padding: '0 2px', lineHeight: 1 }}
+                              >
+                                ✎
+                              </button>
+                              <button
+                                onClick={() => reportWrongPrice(bev.id)}
+                                title="Rapportera fel pris"
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#d1d5db', fontSize: 16, padding: '0 2px', lineHeight: 1 }}
+                              >
+                                ×
+                              </button>
+                            </div>
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span className={styles.historyRight}>{fmtShort(bev.created_at)}</span>
-                            <button
-                              onClick={() => reportWrongPrice(bev.id)}
-                              title="Rapportera fel pris"
-                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#d1d5db', fontSize: 16, padding: '0 2px', lineHeight: 1 }}
-                            >
-                              ×
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                   {addForm}
