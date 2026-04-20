@@ -50,7 +50,10 @@ No test suite is configured.
 
 ## Planned features
 
-- **Beer name field** — Optional field in the price submission form. When a beer name has been submitted more than once, it appears as an autocomplete suggestion when the user starts typing (fuzzy/similarity match). Storing the name alongside the price record.
+- **Multiple beverages per location** — Allow users to submit multiple non-alcoholic beverage entries per bar/restaurant. Each entry has a price and an optional free-text name (e.g. "Carlsberg alkoholfri", "Mikkeller Drink'in the Sun", "Läsk", "Alkoholfritt vin", "Red Bull"). Beverage type is unrestricted — any NA drink can be added.
+  - Names are optional but encouraged.
+  - When a name has been used multiple times across all submissions, it appears as an autocomplete suggestion (fuzzy/similarity match).
+  - Future: statistics view showing where specific named beverages are cheapest across all locations.
 
 ## Environment variables
 
