@@ -24,6 +24,22 @@ type PriceRow = {
   deleted_at: string | null;
 };
 
+type Category = 'na_beer' | 'soda' | 'na_wine' | 'other';
+
+const CATEGORY_LABELS: Record<Category, string> = {
+  na_beer: 'Öl',
+  soda: 'Läsk',
+  na_wine: 'Vin',
+  other: 'Övrigt',
+};
+
+type BeverageNameRow = {
+  name: string;
+  category: Category;
+  total: number;
+  bars: { bar_id: number; bar_name: string; count: number }[];
+};
+
 type SortKey = 'newest' | 'oldest' | 'highest' | 'lowest';
 
 type MatchRow = { id: number; bar_name: string; google_name: string; similarity: number; dist: number; place_id: string };
@@ -125,7 +141,7 @@ function calcStats(rows: PriceRow[]) {
 
 export default function AdminPage() {
   const searchParams = useSearchParams();
-  const [tab, setTab] = useState<'prices' | 'audit'>('prices');
+  const [tab, setTab] = useState<'prices' | 'names' | 'audit'>('prices');
   const [days, setDays] = useState(30);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState('');
@@ -134,12 +150,18 @@ export default function AdminPage() {
 
   const [prices, setPrices] = useState<PriceRow[]>([]);
   const [audit, setAudit] = useState<AuditRow[]>([]);
+  const [beverageNames, setBeverageNames] = useState<BeverageNameRow[]>([]);
+  const [expandedNames, setExpandedNames] = useState<Set<string>>(new Set());
   const [includeDeleted, setIncludeDeleted] = useState(false);
   const [barsWithPrices, setBarsWithPrices] = useState<number | null>(null);
   const [matchLoading, setMatchLoading] = useState(false);
   const [matchResult, setMatchResult] = useState<MatchResult | null>(null);
 
-  const headline = useMemo(() => (tab === 'prices' ? 'Prishistorik' : 'Audit-logg'), [tab]);
+  const headline = useMemo(() => {
+    if (tab === 'prices') return 'Prishistorik';
+    if (tab === 'names') return 'Dryckesnamn';
+    return 'Audit-logg';
+  }, [tab]);
 
   const sortedPrices = useMemo(() => {
     const copy = [...prices];
@@ -162,6 +184,11 @@ export default function AdminPage() {
         const j = await r.json();
         if (!j.ok) throw new Error(j.error || 'Kunde inte ladda priser');
         setPrices(j.rows || []);
+      } else if (tab === 'names') {
+        const r = await fetch(`/api/admin/beverage-names?demo=${isDemo ? '1' : '0'}`, { cache: 'no-store' });
+        const j = await r.json();
+        if (!j.ok) throw new Error(j.error || 'Kunde inte ladda namn');
+        setBeverageNames(j.rows || []);
       } else {
         const r = await fetch(
           `/api/admin/audit?days=${encodeURIComponent(days)}&limit=250&demo=${isDemo ? '1' : '0'}`,
@@ -289,6 +316,7 @@ export default function AdminPage() {
             </div>
             <div style={{ display: 'flex', gap: 6 }}>
               <button style={btn(tab === 'prices' ? 'dark' : 'light')} onClick={() => setTab('prices')}>Priser</button>
+              <button style={btn(tab === 'names' ? 'dark' : 'light')} onClick={() => setTab('names')}>Namn</button>
               <button style={btn(tab === 'audit' ? 'dark' : 'light')} onClick={() => setTab('audit')}>Audit</button>
             </div>
           </div>
@@ -448,6 +476,104 @@ export default function AdminPage() {
             </div>
           )}
         </div>
+
+        {/* Dryckesnamn */}
+        {tab === 'names' && (
+          <div style={card({ padding: 16 })}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+              <span style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>Namn</span>
+              <button
+                style={{ ...btn(isDemo ? 'light' : 'dark'), padding: '4px 12px', fontSize: 13 }}
+                onClick={() => setIsDemo(!isDemo)}
+              >
+                {isDemo ? 'Demo' : 'Live'}
+              </button>
+              <span style={{ ...muted, fontSize: 12 }}>
+                Sorterad efter antal rapporter. Klicka på ett namn för att se platserna, och på en plats för att öppna den på kartan i en ny flik.
+              </span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {beverageNames.map((row) => {
+                const key = `${row.category}::${row.name.toLowerCase()}`;
+                const expanded = expandedNames.has(key);
+                return (
+                  <div key={key} style={card({ padding: '10px 12px' })}>
+                    <button
+                      onClick={() => {
+                        setExpandedNames(prev => {
+                          const next = new Set(prev);
+                          if (next.has(key)) next.delete(key); else next.add(key);
+                          return next;
+                        });
+                      }}
+                      style={{
+                        width: '100%',
+                        background: 'none',
+                        border: 'none',
+                        padding: 0,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        gap: 10,
+                        textAlign: 'left',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 13, color: '#6b7280', width: 10 }}>{expanded ? '▾' : '▸'}</span>
+                        <span style={{ fontWeight: 600, color: '#111827', fontSize: 14 }}>{row.name}</span>
+                        <span style={{
+                          display: 'inline-block',
+                          padding: '2px 8px',
+                          borderRadius: 999,
+                          background: '#f3f4f6',
+                          border: '1px solid #e5e7eb',
+                          color: '#374151',
+                          fontSize: 12,
+                          fontWeight: 600,
+                        }}>
+                          {CATEGORY_LABELS[row.category]}
+                        </span>
+                      </div>
+                      <span style={{ fontWeight: 600, color: '#111827', fontSize: 13 }}>
+                        {row.total} {row.total === 1 ? 'rapport' : 'rapporter'}
+                        <span style={{ ...muted, marginLeft: 6 }}>· {row.bars.length} {row.bars.length === 1 ? 'plats' : 'platser'}</span>
+                      </span>
+                    </button>
+                    {expanded && (
+                      <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {row.bars.map(b => (
+                          <a
+                            key={b.bar_id}
+                            href={`/?bar=${b.bar_id}${isDemo ? '&demo' : ''}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              padding: '6px 10px',
+                              background: '#f9fafb',
+                              border: '1px solid #e5e7eb',
+                              borderRadius: 6,
+                              fontSize: 13,
+                              color: '#111827',
+                              textDecoration: 'none',
+                            }}
+                          >
+                            <span>{b.bar_name} <span style={muted}>↗</span></span>
+                            <span style={muted}>{b.count} {b.count === 1 ? 'rapport' : 'rapporter'}</span>
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              {!beverageNames.length && !loading && <div style={muted}>Inga namngivna drycker än.</div>}
+            </div>
+          </div>
+        )}
 
         {/* Audit */}
         {tab === 'audit' && (

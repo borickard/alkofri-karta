@@ -43,7 +43,6 @@ export async function GET(req: Request) {
     }
 
     const names = [...counts.values()]
-      .filter(e => e.count >= 2)
       .sort((a, b) => b.count - a.count)
       .map(e => e.name);
 
