@@ -37,7 +37,7 @@ No test suite is configured.
 ### Data model (Supabase)
 
 - **bars / bars_demo** — location records (id, name, lat, lng, source, source_id, no_na_beer)
-- **prices / prices_demo** — price records with soft deletes (deleted_at nullable)
+- **prices / prices_demo** — price records with soft deletes (deleted_at nullable). Each row has a `category` (`na_beer` | `soda` | `na_wine` | `other`, default `na_beer`) and an optional `beverage_name`.
 - **audit_events** — every user action logged with hashed IP + user agent
 
 ### Demo vs production
@@ -54,13 +54,13 @@ No test suite is configured.
 
 ## Implemented features
 
-- **Multiple beverages per location** — Users can submit multiple non-alcoholic beverage entries per bar/restaurant. Each entry has a price (required, 10–150 kr) and an optional free-text name (e.g. "Carlsberg 0,0%", "Mikkeller Drink'in the Sun", "Läsk", "Red Bull"). Beverage type is unrestricted.
-  - Names are optional; shown as "Alkoholfri öl" if blank.
-  - When a name has been submitted 2+ times across all entries it appears as an autocomplete suggestion (HTML5 `<datalist>`).
-  - Map markers show the **lowest** active price per bar.
-  - Each beverage row has a × button to report/remove a wrong entry.
-  - DB migration: `supabase/migrations/add_beverage_name.sql` — adds `beverage_name text` column to `prices` and `prices_demo`.
-  - New API route: `GET /api/beverage-names` — returns names used 2+ times.
+- **Multiple beverages per location** — Users can submit multiple non-alcoholic beverage entries per bar/restaurant. Each entry has a price (required, 10–150 kr), a category (Öl / Läsk / Vin / Övrigt, default Öl), and an optional free-text name (e.g. "Carlsberg 0,0%", "Mikkeller Drink'in the Sun", "Red Bull").
+  - Names are optional; shown as the category label if blank.
+  - When a name has been submitted 2+ times within a given category it appears as an autocomplete suggestion (HTML5 `<datalist>`), scoped by category.
+  - Map markers show the **lowest** active NA-beer price per bar. Bars whose only entries are soda/NA wine/other render as an unpriced dot — their entries are still visible in the detail panel, grouped by category.
+  - Each beverage row has a ✎ button to edit and a × button to report/remove a wrong entry.
+  - DB migrations: `supabase/migrations/add_beverage_name.sql` + `supabase/migrations/add_beverage_category.sql`.
+  - API route: `GET /api/beverage-names?category=<category>` — returns names used 2+ times within that category.
 
 ## Environment variables
 

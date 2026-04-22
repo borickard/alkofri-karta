@@ -13,12 +13,19 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const demo = searchParams.has('demo');
     const pricesTable = demo ? 'prices_demo' : 'prices';
+    const ALLOWED_CATEGORIES = ['na_beer', 'soda', 'na_wine', 'other'] as const;
+    const categoryParam = searchParams.get('category');
+    const category = ALLOWED_CATEGORIES.includes(categoryParam as typeof ALLOWED_CATEGORIES[number])
+      ? (categoryParam as typeof ALLOWED_CATEGORIES[number])
+      : null;
 
-    const { data, error } = await supabase
+    let query = supabase
       .from(pricesTable)
       .select('beverage_name')
       .is('deleted_at', null)
       .not('beverage_name', 'is', null);
+    if (category) query = query.eq('category', category);
+    const { data, error } = await query;
 
     if (error) return NextResponse.json({ ok: false, names: [] });
 

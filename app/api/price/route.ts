@@ -38,6 +38,12 @@ export async function POST(req: Request) {
     const bar_id = body.bar_id ? Number(body.bar_id) : null;
     const price_sek = Number(body.price_sek);
     const beverage_name = typeof body.beverage_name === 'string' && body.beverage_name.trim() ? body.beverage_name.trim() : null;
+    const ALLOWED_CATEGORIES = ['na_beer', 'soda', 'na_wine', 'other'] as const;
+    const rawCategory = typeof body.category === 'string' ? body.category : 'na_beer';
+    if (!ALLOWED_CATEGORIES.includes(rawCategory as typeof ALLOWED_CATEGORIES[number])) {
+      return jsonError('Ogiltig kategori.');
+    }
+    const category = rawCategory as typeof ALLOWED_CATEGORIES[number];
 
     if (!Number.isFinite(price_sek)) return jsonError('price_sek saknas.');
     if (price_sek < 10 || price_sek > 150) return jsonError('Pris måste vara 10-150 kr.');
@@ -99,17 +105,21 @@ export async function POST(req: Request) {
 
     if (!finalBarId) return jsonError('Kunde inte hitta/skapa bar.', 500);
 
-    const { error: barUpdErr } = await supabase
-      .from(barsTable)
-      .update({ no_na_beer: false, no_na_reported_at: null })
-      .eq('id', finalBarId);
+    // Only an NA-beer submission clears the "no NA beer" flag — a soda or
+    // non-beer entry doesn't prove the venue carries alcohol-free beer.
+    if (category === 'na_beer') {
+      const { error: barUpdErr } = await supabase
+        .from(barsTable)
+        .update({ no_na_beer: false, no_na_reported_at: null })
+        .eq('id', finalBarId);
 
-    if (barUpdErr) return jsonError(`DB: ${barUpdErr.message}`, 500);
+      if (barUpdErr) return jsonError(`DB: ${barUpdErr.message}`, 500);
+    }
 
     const { data: priceRow, error: priceErr } = await supabase
       .from(pricesTable)
-      .insert({ bar_id: finalBarId, price_sek, beverage_name })
-      .select('id,bar_id,price_sek,created_at,beverage_name')
+      .insert({ bar_id: finalBarId, price_sek, beverage_name, category })
+      .select('id,bar_id,price_sek,created_at,beverage_name,category')
       .single();
 
     if (priceErr) return jsonError(`DB: ${priceErr.message}`, 500);

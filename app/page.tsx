@@ -22,12 +22,29 @@ type Bar = {
   google_place_id: string | null;
 };
 
+type Category = 'na_beer' | 'soda' | 'na_wine' | 'other';
+
+const CATEGORY_ORDER: Category[] = ['na_beer', 'soda', 'na_wine', 'other'];
+const CATEGORY_LABELS: Record<Category, string> = {
+  na_beer: 'Alkoholfri öl',
+  soda: 'Läsk',
+  na_wine: 'Alkoholfritt vin',
+  other: 'Övrigt',
+};
+const CATEGORY_CHIPS: { value: Category; label: string }[] = [
+  { value: 'na_beer', label: 'Öl' },
+  { value: 'soda', label: 'Läsk' },
+  { value: 'na_wine', label: 'Vin' },
+  { value: 'other', label: 'Övrigt' },
+];
+
 type LatestPrice = {
   id: number;
   bar_id: number;
   price_sek: number;
   created_at: string;
   beverage_name: string | null;
+  category: Category;
 };
 
 type Candidate = {
@@ -417,13 +434,6 @@ export default function Page() {
   useEffect(() => { latestPricesRef.current = latestPrices; }, [latestPrices]);
   useEffect(() => { track('pageview'); }, []);
 
-  useEffect(() => {
-    fetch(`/api/beverage-names${isDemoMode ? '?demo' : ''}`)
-      .then(r => r.json())
-      .then(j => { if (j.ok) setBeverageSuggestions(j.names); })
-      .catch(() => {});
-  }, [isDemoMode]);
-
   const [welcomeOpen, setWelcomeOpen] = useState(!searchParams.has('bar'));
   const [omOpen, setOmOpen] = useState(() => pathname === '/info');
   const [searchOpen, setSearchOpen] = useState(false);
@@ -443,10 +453,21 @@ export default function Page() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [priceInput, setPriceInput] = useState('');
   const [beverageNameInput, setBeverageNameInput] = useState('');
+  const [categoryInput, setCategoryInput] = useState<Category>('na_beer');
   const [status, setStatus] = useState('');
   const [beverages, setBeverages] = useState<LatestPrice[]>([]);
   const [beverageSuggestions, setBeverageSuggestions] = useState<string[]>([]);
   const [editingBeverage, setEditingBeverage] = useState<LatestPrice | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (isDemoMode) params.set('demo', '');
+    params.set('category', categoryInput);
+    fetch(`/api/beverage-names?${params.toString()}`)
+      .then(r => r.json())
+      .then(j => { if (j.ok) setBeverageSuggestions(j.names); })
+      .catch(() => {});
+  }, [isDemoMode, categoryInput]);
   const [undoAction, setUndoAction] = useState<{ type: 'price'; price_id: number; bar_id: number } | { type: 'no_na'; bar_id: number } | null>(null);
   const [ohLoading, setOhLoading] = useState(false);
   const [ohChecked, setOhChecked] = useState(false);
@@ -547,16 +568,22 @@ export default function Page() {
 
     const { data: pricesData, error: pricesErr } = await supabase
       .from(pricesTable)
-      .select('id,bar_id,price_sek,created_at,beverage_name')
+      .select('id,bar_id,price_sek,created_at,beverage_name,category')
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
       .limit(5000);
 
     if (pricesErr) throw pricesErr;
 
+    // Markers represent the cheapest NA-beer price only — non-beer rows
+    // (soda, NA wine, other) live in the detail panel, not on the map.
     const latest = new Map<number, LatestPrice>();
     for (const p of pricesData ?? []) {
-      const pp = p as { id: unknown; bar_id: unknown; price_sek: unknown; created_at: unknown; beverage_name: unknown };
+      const pp = p as { id: unknown; bar_id: unknown; price_sek: unknown; created_at: unknown; beverage_name: unknown; category: unknown };
+      const category = (typeof pp.category === 'string' && CATEGORY_ORDER.includes(pp.category as Category))
+        ? (pp.category as Category)
+        : 'na_beer';
+      if (category !== 'na_beer') continue;
       const bar_id = Number(pp.bar_id);
       const price_sek = Number(pp.price_sek);
       const existing = latest.get(bar_id);
@@ -567,6 +594,7 @@ export default function Page() {
           price_sek,
           created_at: String(pp.created_at),
           beverage_name: pp.beverage_name != null ? String(pp.beverage_name) : null,
+          category,
         });
       }
     }
@@ -582,7 +610,7 @@ export default function Page() {
     const pricesTable = isDemoMode ? 'prices_demo' : 'prices';
     const { data, error } = await supabase
       .from(pricesTable)
-      .select('id,bar_id,price_sek,created_at,beverage_name')
+      .select('id,bar_id,price_sek,created_at,beverage_name,category')
       .eq('bar_id', barId)
       .is('deleted_at', null)
       .order('created_at', { ascending: false });
@@ -591,13 +619,17 @@ export default function Page() {
 
     setBeverages(
       (data ?? []).map((r) => {
-        const rr = r as { id: unknown; bar_id: unknown; price_sek: unknown; created_at: unknown; beverage_name: unknown };
+        const rr = r as { id: unknown; bar_id: unknown; price_sek: unknown; created_at: unknown; beverage_name: unknown; category: unknown };
+        const category = (typeof rr.category === 'string' && CATEGORY_ORDER.includes(rr.category as Category))
+          ? (rr.category as Category)
+          : 'na_beer';
         return {
           id: Number(rr.id),
           bar_id: Number(rr.bar_id),
           price_sek: Number(rr.price_sek),
           created_at: String(rr.created_at),
           beverage_name: rr.beverage_name != null ? String(rr.beverage_name) : null,
+          category,
         };
       }),
     );
@@ -673,6 +705,7 @@ export default function Page() {
         setStatus('');
         setPriceInput('');
         setBeverageNameInput('');
+        setCategoryInput('na_beer');
         window.history.replaceState(null, '', buildBarUrl(b.id));
         track('Location Opened');
         loadBeverages(b.id).catch(console.error);
@@ -834,7 +867,7 @@ export default function Page() {
     const r = await fetch('/api/price', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bar_id: selectedBar.id, price_sek: p, beverage_name: beverageNameInput.trim() || null, demo: isDemoMode }),
+      body: JSON.stringify({ bar_id: selectedBar.id, price_sek: p, beverage_name: beverageNameInput.trim() || null, category: categoryInput, demo: isDemoMode }),
     });
     const j = await r.json();
     if (!j.ok) { setStatus(`Fel: ${j.error || 'okänt fel'}`); return; }
@@ -842,6 +875,7 @@ export default function Page() {
     setStatus('');
     setPriceInput('');
     setBeverageNameInput('');
+    setCategoryInput('na_beer');
     if (editingBeverage) {
       await fetch('/api/report-wrong-price', {
         method: 'POST',
@@ -864,7 +898,7 @@ export default function Page() {
     const r = await fetch('/api/price', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...candidate, price_sek: p, beverage_name: beverageNameInput.trim() || null, demo: isDemoMode }),
+      body: JSON.stringify({ ...candidate, price_sek: p, beverage_name: beverageNameInput.trim() || null, category: categoryInput, demo: isDemoMode }),
     });
     const j = await r.json();
     if (!j.ok) { setStatus(`Fel: ${j.error || 'okänt fel'}`); return; }
@@ -872,6 +906,7 @@ export default function Page() {
     setStatus('');
     setPriceInput('');
     setBeverageNameInput('');
+    setCategoryInput('na_beer');
     await loadBarsAndPrices();
     if (j.bar_id) {
       setUndoAction({ type: 'price', price_id: j.price.id, bar_id: j.bar_id });
@@ -1029,6 +1064,7 @@ export default function Page() {
       setBeverages([]);
       setPriceInput('');
       setBeverageNameInput('');
+      setCategoryInput('na_beer');
       window.history.replaceState(null, '', buildBarUrl(j.bar_id));
       loadBeverages(j.bar_id).catch(console.error);
       focusPoint(place.lng, place.lat, 16);
@@ -1056,6 +1092,7 @@ export default function Page() {
     setBeverages([]);
     setPriceInput('');
     setBeverageNameInput('');
+    setCategoryInput('na_beer');
     setEditingBeverage(null);
     setUndoAction(null);
     window.history.replaceState(null, '', buildBarUrl(b.id));
@@ -1080,6 +1117,7 @@ export default function Page() {
     setBeverages([]);
     setPriceInput('');
     setBeverageNameInput('');
+    setCategoryInput('na_beer');
     setEditingBeverage(null);
     setUndoAction(null);
     setOhLoading(false);
@@ -1178,6 +1216,7 @@ export default function Page() {
       setBeverages([]);
       setPriceInput('');
       setBeverageNameInput('');
+      setCategoryInput('na_beer');
       focusPoint(cand.lng, cand.lat);
       fetchAddress(null);
 
@@ -1508,13 +1547,38 @@ export default function Page() {
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12, color: '#6B7280' }}>
                       <span>Uppdaterar pris</span>
                       <button
-                        onClick={() => { setEditingBeverage(null); setPriceInput(''); setBeverageNameInput(''); }}
+                        onClick={() => { setEditingBeverage(null); setPriceInput(''); setBeverageNameInput(''); setCategoryInput('na_beer'); }}
                         style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 13, padding: 0 }}
                       >
                         Avbryt
                       </button>
                     </div>
                   )}
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {CATEGORY_CHIPS.map(chip => {
+                      const selected = categoryInput === chip.value;
+                      return (
+                        <button
+                          key={chip.value}
+                          type="button"
+                          onClick={() => setCategoryInput(chip.value)}
+                          style={{
+                            padding: '4px 12px',
+                            borderRadius: 999,
+                            border: selected ? '1.5px solid #111827' : '1px solid #d1d5db',
+                            background: selected ? '#111827' : '#ffffff',
+                            color: selected ? '#ffffff' : '#374151',
+                            fontSize: 12,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            lineHeight: 1,
+                          }}
+                        >
+                          {chip.label}
+                        </button>
+                      );
+                    })}
+                  </div>
                   <input
                     list="beverage-suggestions"
                     className={styles.input}
@@ -1567,6 +1631,15 @@ export default function Page() {
                 );
               }
 
+              const beverageGroups = CATEGORY_ORDER
+                .map(cat => ({
+                  category: cat,
+                  items: beverages
+                    .filter(b => b.category === cat)
+                    .sort((a, b) => a.price_sek - b.price_sek),
+                }))
+                .filter(g => g.items.length > 0);
+
               return (
                 <>
                   {beverages.length === 0 && (
@@ -1574,44 +1647,50 @@ export default function Page() {
                       Inga drycker rapporterade än.
                     </div>
                   )}
-                  {beverages.length > 0 && (
+                  {beverageGroups.length > 0 && (
                     <div className={styles.history}>
-                      {beverages.map(bev => {
-                        const isEditing = editingBeverage?.id === bev.id;
-                        return (
-                          <div key={bev.id} className={styles.historyItem} style={isEditing ? { background: '#eff6ff', border: '1px solid #bfdbfe' } : {}}>
-                            <div>
-                              <span className={styles.historyLeft}>
-                                {bev.beverage_name || 'Alkoholfri öl'}
-                              </span>
-                              <span style={{ fontSize: 13, color: '#374151', marginLeft: 8, fontWeight: 600 }}>
-                                {bev.price_sek} kr
-                              </span>
+                      {beverageGroups.flatMap(group => [
+                        <div key={`header-${group.category}`} className={styles.hint} style={{ marginTop: 4 }}>
+                          {CATEGORY_LABELS[group.category]}
+                        </div>,
+                        ...group.items.map(bev => {
+                          const isEditing = editingBeverage?.id === bev.id;
+                          return (
+                            <div key={bev.id} className={styles.historyItem} style={isEditing ? { background: '#eff6ff', border: '1px solid #bfdbfe' } : {}}>
+                              <div>
+                                <span className={styles.historyLeft}>
+                                  {bev.beverage_name || CATEGORY_LABELS[bev.category]}
+                                </span>
+                                <span style={{ fontSize: 13, color: '#374151', marginLeft: 8, fontWeight: 600 }}>
+                                  {bev.price_sek} kr
+                                </span>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <span className={styles.historyRight}>{fmtShort(bev.created_at)}</span>
+                                <button
+                                  onClick={() => {
+                                    setEditingBeverage(bev);
+                                    setBeverageNameInput(bev.beverage_name || '');
+                                    setPriceInput(String(bev.price_sek));
+                                    setCategoryInput(bev.category);
+                                  }}
+                                  title="Ändra pris"
+                                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 13, padding: '0 2px', lineHeight: 1 }}
+                                >
+                                  ✎
+                                </button>
+                                <button
+                                  onClick={() => reportWrongPrice(bev.id)}
+                                  title="Rapportera fel pris"
+                                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#d1d5db', fontSize: 16, padding: '0 2px', lineHeight: 1 }}
+                                >
+                                  ×
+                                </button>
+                              </div>
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                              <span className={styles.historyRight}>{fmtShort(bev.created_at)}</span>
-                              <button
-                                onClick={() => {
-                                  setEditingBeverage(bev);
-                                  setBeverageNameInput(bev.beverage_name || '');
-                                  setPriceInput(String(bev.price_sek));
-                                }}
-                                title="Ändra pris"
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 13, padding: '0 2px', lineHeight: 1 }}
-                              >
-                                ✎
-                              </button>
-                              <button
-                                onClick={() => reportWrongPrice(bev.id)}
-                                title="Rapportera fel pris"
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#d1d5db', fontSize: 16, padding: '0 2px', lineHeight: 1 }}
-                              >
-                                ×
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        }),
+                      ])}
                     </div>
                   )}
                   {addForm}
@@ -1619,8 +1698,9 @@ export default function Page() {
               );
             })()}
 
-            {/* No NA beer button — only when no beverages reported */}
-            {locationInSweden && beverages.length === 0 && !selectedBar?.no_na_beer && (
+            {/* "No NA beer here" is independent of soda/wine entries — only
+                hide it when the bar is already flagged or beer has been reported. */}
+            {locationInSweden && beverages.every(b => b.category !== 'na_beer') && !selectedBar?.no_na_beer && (
               <button
                 className={styles.btn}
                 onClick={() => (selectedBar ? reportNoNaSelected() : reportNoNaCandidate())}
