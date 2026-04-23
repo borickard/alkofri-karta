@@ -202,7 +202,7 @@ export default function AdminPage() {
   const [renameSaving, setRenameSaving] = useState<string | null>(null);
 
   const [insights, setInsights] = useState<InsightsResponse | null>(null);
-  const [insightCategory, setInsightCategory] = useState<'all' | Category>('all');
+  const [insightCategory, setInsightCategory] = useState<Category>('na_beer');
   const [insightDays, setInsightDays] = useState<0 | 30 | 90 | 365>(0);
   const [insightGeo, setInsightGeo] = useState<'city' | 'county'>('city');
   const [insightMinPrices, setInsightMinPrices] = useState(1);
@@ -751,9 +751,9 @@ export default function AdminPage() {
 
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {(['all', 'na_beer', 'soda', 'na_wine', 'other'] as const).map((c) => {
+                {(['na_beer', 'soda', 'na_wine', 'other'] as const).map((c) => {
                   const selected = insightCategory === c;
-                  const label = c === 'all' ? 'Alla' : CATEGORY_LABELS[c];
+                  const label = CATEGORY_LABELS[c];
                   return (
                     <button
                       key={c}

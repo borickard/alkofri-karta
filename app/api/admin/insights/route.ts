@@ -88,9 +88,9 @@ export async function GET(req: Request) {
     const supabase = createClient(url, serviceKey, { auth: { persistSession: false } });
     const u = new URL(req.url);
     const categoryParam = u.searchParams.get('category');
-    const category: Category | 'all' = ALLOWED_CATEGORIES.includes(categoryParam as Category)
+    const category: Category = ALLOWED_CATEGORIES.includes(categoryParam as Category)
       ? (categoryParam as Category)
-      : 'all';
+      : 'na_beer';
 
     const daysParam = Number(u.searchParams.get('days') || '0');
     const days = Number.isFinite(daysParam) && daysParam > 0 ? Math.floor(daysParam) : 0;
@@ -103,8 +103,8 @@ export async function GET(req: Request) {
     let pricesQuery = supabase
       .from(pricesTable)
       .select('id,bar_id,price_sek,category,beverage_name,created_at')
-      .is('deleted_at', null);
-    if (category !== 'all') pricesQuery = pricesQuery.eq('category', category);
+      .is('deleted_at', null)
+      .eq('category', category);
     if (days > 0) {
       const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
       pricesQuery = pricesQuery.gte('created_at', since);
