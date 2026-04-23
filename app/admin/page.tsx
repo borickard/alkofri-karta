@@ -426,7 +426,7 @@ export default function AdminPage() {
               <div style={{ marginTop: 2, ...muted }}>{headline}</div>
               {barsWithPrices !== null && (
                 <div style={{ marginTop: 4, fontSize: 13, color: '#065f46', fontWeight: 600 }}>
-                  {barsWithPrices} platser med priser
+                  {barsWithPrices} platser med minst ett pris
                 </div>
               )}
             </div>
