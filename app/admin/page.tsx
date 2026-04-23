@@ -193,7 +193,7 @@ export default function AdminPage() {
     if (searchParams.has('audit')) return 'audit';
     return 'insights';
   });
-  const [days, setDays] = useState(30);
+  const [rensaDays, setRensaDays] = useState(30);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState('');
   const [isDemo, setIsDemo] = useState(() => searchParams.has('demo'));
@@ -248,7 +248,7 @@ export default function AdminPage() {
     setStatus('');
     try {
       if (tab === 'prices') {
-        const url = `/api/admin/prices?days=${encodeURIComponent(days)}&limit=200&include_deleted=${includeDeleted ? '1' : '0'}&demo=${isDemo ? '1' : '0'}`;
+        const url = `/api/admin/prices?limit=500&include_deleted=${includeDeleted ? '1' : '0'}&demo=${isDemo ? '1' : '0'}`;
         const r = await fetch(url, { cache: 'no-store' });
         const j = await r.json();
         if (!j.ok) throw new Error(j.error || 'Kunde inte ladda priser');
@@ -271,7 +271,7 @@ export default function AdminPage() {
         setInsights(j as InsightsResponse);
       } else {
         const r = await fetch(
-          `/api/admin/audit?days=${encodeURIComponent(days)}&limit=250&demo=${isDemo ? '1' : '0'}`,
+          `/api/admin/audit?limit=250&demo=${isDemo ? '1' : '0'}`,
           { cache: 'no-store' }
         );
         const j = await r.json();
@@ -292,10 +292,9 @@ export default function AdminPage() {
   }, []);
 
   useEffect(() => {
-    window.history.replaceState(null, '', isDemo ? '?demo' : window.location.pathname);
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, days, includeDeleted, isDemo, insightCategory, insightDays, insightMinPrices, insightMinBars]);
+  }, [tab, includeDeleted, isDemo, insightCategory, insightDays, insightMinPrices, insightMinBars]);
 
   async function renameBeverage(row: BeverageNameRow) {
     const key = `${row.category}::${row.name.toLowerCase()}`;
@@ -371,13 +370,13 @@ export default function AdminPage() {
   }
 
   async function bulkDeleteLastDays() {
-    if (!confirm(`Rensa priser från senaste ${days} dagar (soft delete)?`)) return;
-    setStatus(`Rensar senaste ${days} dagar...`);
+    if (!confirm(`Rensa priser från senaste ${rensaDays} dagar (soft delete)?`)) return;
+    setStatus(`Rensar senaste ${rensaDays} dagar...`);
     try {
       const r = await fetch('/api/admin/bulk-delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'last_days', days, demo: isDemo }),
+        body: JSON.stringify({ mode: 'last_days', days: rensaDays, demo: isDemo }),
       });
       const j = await r.json();
       if (!j.ok) throw new Error(j.error || 'Bulk delete misslyckades');
@@ -432,44 +431,11 @@ export default function AdminPage() {
               )}
             </div>
             <div style={{ display: 'flex', gap: 6 }}>
-              <button style={btn(tab === 'prices' ? 'dark' : 'light')} onClick={() => setTab('prices')}>Priser</button>
-              <button style={btn(tab === 'names' ? 'dark' : 'light')} onClick={() => setTab('names')}>Namn</button>
               <button style={btn(tab === 'insights' ? 'dark' : 'light')} onClick={() => setTab('insights')}>Insikter</button>
+              <button style={btn(tab === 'names' ? 'dark' : 'light')} onClick={() => setTab('names')}>Namn</button>
+              <button style={btn(tab === 'prices' ? 'dark' : 'light')} onClick={() => setTab('prices')}>Priser</button>
               <button style={btn(tab === 'audit' ? 'dark' : 'light')} onClick={() => setTab('audit')}>Audit</button>
             </div>
-          </div>
-
-          {/* Controls */}
-          <div style={{ marginTop: 14, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-            <span style={label}>Dagar:</span>
-            <input
-              style={{ ...inputStyle, width: 90 }}
-              inputMode="numeric"
-              value={String(days)}
-              onChange={(e) => setDays(Number(e.target.value || 0))}
-            />
-
-            {tab === 'prices' && (
-              <label style={{ display: 'flex', gap: 6, alignItems: 'center', ...label, cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={includeDeleted}
-                  onChange={(e) => setIncludeDeleted(e.target.checked)}
-                />
-                Visa deletade
-              </label>
-            )}
-
-            <button style={btn('light')} onClick={load} disabled={loading}>
-              {loading ? 'Laddar…' : 'Uppdatera'}
-            </button>
-
-            <button style={btn('light')} onClick={bulkDeleteLastDays}>
-              Rensa {days} dagar
-            </button>
-            <button style={btn('danger')} onClick={bulkDeleteAll}>
-              Rensa alla
-            </button>
           </div>
 
           {status && (
@@ -482,9 +448,17 @@ export default function AdminPage() {
           <div style={card({ padding: 16 })}>
             {/* Section heading with db indicator */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>Priser</span>
                 <DbToggle isDemo={isDemo} onChange={setIsDemo} />
+                <label style={{ display: 'flex', gap: 6, alignItems: 'center', ...label, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={includeDeleted}
+                    onChange={(e) => setIncludeDeleted(e.target.checked)}
+                  />
+                  Visa deletade
+                </label>
               </div>
 
               {/* Sort */}
@@ -1024,6 +998,23 @@ export default function AdminPage() {
                   )}
                 </div>
               )}
+            </div>
+
+            <div style={card({ padding: 12, marginBottom: 14 })}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 8 }}>Rensa prisdata</div>
+              <div style={{ ...muted, marginBottom: 10 }}>Soft-deletear priser i den valda tabellen ({isDemo ? 'Demo' : 'Live'}).</div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                <span style={label}>Senaste</span>
+                <input
+                  style={{ ...inputStyle, width: 70 }}
+                  inputMode="numeric"
+                  value={String(rensaDays)}
+                  onChange={(e) => setRensaDays(Math.max(1, Number(e.target.value || 0)))}
+                />
+                <span style={label}>dagar</span>
+                <button style={btn('light')} onClick={bulkDeleteLastDays}>Rensa</button>
+                <button style={btn('danger')} onClick={bulkDeleteAll}>Rensa alla</button>
+              </div>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
