@@ -3,7 +3,7 @@ export const runtime = 'nodejs';
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getTableNames } from '@/lib/tableNames';
-import { parseCityFromAddress, cityForLatLng, countyForLatLng } from '@/lib/geo';
+import { placeForLatLng } from '@/lib/geo';
 
 const ALLOWED_CATEGORIES = ['na_beer', 'soda', 'na_wine', 'other'] as const;
 type Category = typeof ALLOWED_CATEGORIES[number];
@@ -31,8 +31,8 @@ type BucketRow = Stats & {
 type PriceOutlier = {
   bar_id: number;
   bar_name: string;
-  city: string;
-  county: string;
+  kommun: string;
+  lan: string;
   price_sek: number;
   beverage_name: string | null;
   category: Category;
@@ -139,24 +139,19 @@ export async function GET(req: Request) {
     const barIds = [...new Set(prices.map(p => p.bar_id))].filter(Number.isFinite);
     const { data: barsData, error: barsErr } = await supabase
       .from(barsTable)
-      .select('id,name,lat,lng,address')
+      .select('id,name,lat,lng')
       .in('id', barIds.length ? barIds : [0]);
     if (barsErr) return jsonError(`DB: ${barsErr.message}`, 500);
 
-    type BarRow = { id: number; name: string; lat: number; lng: number; address: string | null; city: string; county: string };
+    type BarRow = { id: number; name: string; kommun: string; lan: string };
     const barMap = new Map<number, BarRow>();
     for (const b of barsData ?? []) {
-      const bb = b as { id: unknown; name: unknown; lat: unknown; lng: unknown; address: unknown };
+      const bb = b as { id: unknown; name: unknown; lat: unknown; lng: unknown };
       const id = Number(bb.id);
       const lat = Number(bb.lat);
       const lng = Number(bb.lng);
-      const address = typeof bb.address === 'string' ? bb.address : null;
-      const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
-      const city = parseCityFromAddress(address)
-        ?? (hasCoords ? cityForLatLng(lat, lng) : null)
-        ?? 'Okänd';
-      const county = hasCoords ? countyForLatLng(lat, lng) : 'Okänd';
-      barMap.set(id, { id, name: String(bb.name ?? ''), lat, lng, address, city, county });
+      const { kommun, lan } = placeForLatLng(lat, lng);
+      barMap.set(id, { id, name: String(bb.name ?? ''), kommun, lan });
     }
 
     // National aggregate
@@ -194,8 +189,8 @@ export async function GET(req: Request) {
       return rows;
     }
 
-    const cityRows = aggregateBy(b => b.city);
-    const countyRows = aggregateBy(b => b.county);
+    const kommunRows = aggregateBy(b => b.kommun);
+    const lanRows = aggregateBy(b => b.lan);
 
     function rankings(rows: BucketRow[]) {
       const eligible = rows.filter(r => r.price_count >= minPrices && r.bar_count >= minBars);
@@ -211,8 +206,8 @@ export async function GET(req: Request) {
       };
     }
 
-    const cityRankings = rankings(cityRows);
-    const countyRankings = rankings(countyRows);
+    const kommunRankings = rankings(kommunRows);
+    const lanRankings = rankings(lanRows);
 
     // Outlier prices (top 5 cheapest and priciest individual active prices)
     const byPriceAsc = [...prices].sort((a, b) => a.price_sek - b.price_sek);
@@ -223,8 +218,8 @@ export async function GET(req: Request) {
       return {
         bar_id: bar.id,
         bar_name: bar.name,
-        city: bar.city,
-        county: bar.county,
+        kommun: bar.kommun,
+        lan: bar.lan,
         price_sek: p.price_sek,
         beverage_name: p.beverage_name,
         category: p.category,
@@ -237,8 +232,8 @@ export async function GET(req: Request) {
     return NextResponse.json({
       ok: true,
       national,
-      by_city: { rows: cityRows, rankings: cityRankings },
-      by_county: { rows: countyRows, rankings: countyRankings },
+      by_kommun: { rows: kommunRows, rankings: kommunRankings },
+      by_lan: { rows: lanRows, rankings: lanRankings },
       outliers: { cheapest_prices, priciest_prices },
       params: { category, days, min_prices: minPrices, min_bars: minBars, demo: isDemo },
     });

@@ -70,8 +70,8 @@ type Rankings = {
 type PriceOutlier = {
   bar_id: number;
   bar_name: string;
-  city: string;
-  county: string;
+  kommun: string;
+  lan: string;
   price_sek: number;
   beverage_name: string | null;
   category: Category;
@@ -81,8 +81,8 @@ type PriceOutlier = {
 type InsightsResponse = {
   ok: boolean;
   national: Stats;
-  by_city: { rows: BucketRow[]; rankings: Rankings };
-  by_county: { rows: BucketRow[]; rankings: Rankings };
+  by_kommun: { rows: BucketRow[]; rankings: Rankings };
+  by_lan: { rows: BucketRow[]; rankings: Rankings };
   outliers: { cheapest_prices: PriceOutlier[]; priciest_prices: PriceOutlier[] };
 };
 
@@ -187,12 +187,23 @@ function calcStats(rows: PriceRow[]) {
 
 export default function AdminPage() {
   const searchParams = useSearchParams();
-  const [tab, setTab] = useState<'prices' | 'names' | 'insights' | 'audit'>('prices');
+  const [tab, setTab] = useState<'prices' | 'names' | 'insights' | 'audit'>(() => {
+    if (searchParams.has('priser')) return 'prices';
+    if (searchParams.has('namn')) return 'names';
+    if (searchParams.has('audit')) return 'audit';
+    return 'insights';
+  });
   const [days, setDays] = useState(30);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState('');
   const [isDemo, setIsDemo] = useState(() => searchParams.has('demo'));
   const [sortKey, setSortKey] = useState<SortKey>('newest');
+
+  useEffect(() => {
+    const tabKey = tab === 'prices' ? 'priser' : tab === 'names' ? 'namn' : tab === 'insights' ? 'insikter' : 'audit';
+    const qs = [tabKey, ...(isDemo ? ['demo'] : [])].join('&');
+    window.history.replaceState(null, '', `/admin?${qs}`);
+  }, [tab, isDemo]);
 
   const [prices, setPrices] = useState<PriceRow[]>([]);
   const [audit, setAudit] = useState<AuditRow[]>([]);
@@ -204,7 +215,7 @@ export default function AdminPage() {
   const [insights, setInsights] = useState<InsightsResponse | null>(null);
   const [insightCategory, setInsightCategory] = useState<Category>('na_beer');
   const [insightDays, setInsightDays] = useState<0 | 30 | 90 | 365>(0);
-  const [insightGeo, setInsightGeo] = useState<'city' | 'county'>('city');
+  const [insightGeo, setInsightGeo] = useState<'kommun' | 'lan'>('kommun');
   const [insightMinPrices, setInsightMinPrices] = useState(1);
   const [insightMinBars, setInsightMinBars] = useState(1);
   const [insightsTableOpen, setInsightsTableOpen] = useState(false);
@@ -544,46 +555,6 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* Match Google Places */}
-        <div style={card({ padding: 16 })}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 10 }}>Matcha mot Google Places</div>
-          <div style={{ ...muted, marginBottom: 12 }}>Kopplar barer utan google_place_id till Google Places för att hämta adress och öppettider.</div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button style={btn('light')} onClick={() => runMatch(true)} disabled={matchLoading}>
-              {matchLoading ? 'Kör…' : 'Förhandsgranska'}
-            </button>
-            {matchResult && matchResult.matched > 0 && matchResult.dry_run && (
-              <button style={btn('dark')} onClick={() => runMatch(false)} disabled={matchLoading}>
-                Spara {matchResult.matched} matchningar
-              </button>
-            )}
-          </div>
-          {matchResult && (
-            <div style={{ marginTop: 12 }}>
-              <div style={{ ...muted, marginBottom: 8 }}>
-                Totalt: {matchResult.total} · Matchade: {matchResult.matched} · Ej matchade: {matchResult.unmatched} · Osäkra: {matchResult.skipped_low_confidence}
-                {!matchResult.dry_run && <span style={{ color: '#065f46', fontWeight: 600 }}> · Sparade!</span>}
-              </div>
-              {matchResult.results.matched.length > 0 && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  {matchResult.results.matched.map(m => (
-                    <div key={m.id} style={card({ padding: '8px 10px', background: '#f0fdf4' })}>
-                      <span style={{ fontWeight: 600, color: '#111827', fontSize: 13 }}>{m.bar_name}</span>
-                      <span style={{ ...muted, fontSize: 12 }}> → {m.google_name} ({Math.round(m.similarity * 100)}% likhet, {m.dist}m)</span>
-                    </div>
-                  ))}
-                  {matchResult.results.unmatched.map(m => (
-                    <div key={m.id} style={card({ padding: '8px 10px', background: '#fef2f2' })}>
-                      <span style={{ fontWeight: 600, color: '#991b1b', fontSize: 13 }}>{m.name}</span>
-                      <span style={{ ...muted, fontSize: 12 }}> — ingen match hittad</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
         {/* Dryckesnamn */}
         {tab === 'names' && (
           <div style={card({ padding: 16 })}>
@@ -711,8 +682,8 @@ export default function AdminPage() {
 
         {/* Insikter */}
         {tab === 'insights' && (() => {
-          const geoLabel = insightGeo === 'city' ? 'städer' : 'län';
-          const active = insights ? (insightGeo === 'city' ? insights.by_city : insights.by_county) : null;
+          const geoLabel = insightGeo === 'kommun' ? 'kommuner' : 'län';
+          const active = insights ? (insightGeo === 'kommun' ? insights.by_kommun : insights.by_lan) : null;
           const fmtKr = (v: number | null) => v === null ? '–' : `${Math.round(v)} kr`;
           const fmtPct = (v: number | null) => {
             if (v === null || !Number.isFinite(v)) return '–';
@@ -786,14 +757,14 @@ export default function AdminPage() {
               </select>
               <div style={{ display: 'flex', gap: 4 }}>
                 <button
-                  style={btn(insightGeo === 'city' ? 'dark' : 'light')}
-                  onClick={() => setInsightGeo('city')}
+                  style={btn(insightGeo === 'kommun' ? 'dark' : 'light')}
+                  onClick={() => setInsightGeo('kommun')}
                 >
-                  Städer
+                  Kommuner
                 </button>
                 <button
-                  style={btn(insightGeo === 'county' ? 'dark' : 'light')}
-                  onClick={() => setInsightGeo('county')}
+                  style={btn(insightGeo === 'lan' ? 'dark' : 'light')}
+                  onClick={() => setInsightGeo('lan')}
                 >
                   Län
                 </button>
@@ -911,7 +882,7 @@ export default function AdminPage() {
                           style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '4px 0', fontSize: 13, color: '#111827', textDecoration: 'none' }}
                         >
                           <span>
-                            <strong>{p.price_sek} kr</strong> · {p.beverage_name || CATEGORY_LABELS[p.category]} · {p.bar_name} <span style={muted}>({p.city}) ↗</span>
+                            <strong>{p.price_sek} kr</strong> · {p.beverage_name || CATEGORY_LABELS[p.category]} · {p.bar_name} <span style={muted}>({p.kommun}) ↗</span>
                           </span>
                         </a>
                       ))}
@@ -928,7 +899,7 @@ export default function AdminPage() {
                           style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '4px 0', fontSize: 13, color: '#111827', textDecoration: 'none' }}
                         >
                           <span>
-                            <strong>{p.price_sek} kr</strong> · {p.beverage_name || CATEGORY_LABELS[p.category]} · {p.bar_name} <span style={muted}>({p.city}) ↗</span>
+                            <strong>{p.price_sek} kr</strong> · {p.beverage_name || CATEGORY_LABELS[p.category]} · {p.bar_name} <span style={muted}>({p.kommun}) ↗</span>
                           </span>
                         </a>
                       ))}
@@ -1015,6 +986,46 @@ export default function AdminPage() {
                 {isDemo ? 'Demo' : 'Live'}
               </button>
             </div>
+
+            <div style={card({ padding: 12, marginBottom: 14 })}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 8 }}>Matcha mot Google Places</div>
+              <div style={{ ...muted, marginBottom: 10 }}>Kopplar barer utan google_place_id till Google Places för att hämta adress och öppettider.</div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button style={btn('light')} onClick={() => runMatch(true)} disabled={matchLoading}>
+                  {matchLoading ? 'Kör…' : 'Förhandsgranska'}
+                </button>
+                {matchResult && matchResult.matched > 0 && matchResult.dry_run && (
+                  <button style={btn('dark')} onClick={() => runMatch(false)} disabled={matchLoading}>
+                    Spara {matchResult.matched} matchningar
+                  </button>
+                )}
+              </div>
+              {matchResult && (
+                <div style={{ marginTop: 12 }}>
+                  <div style={{ ...muted, marginBottom: 8 }}>
+                    Totalt: {matchResult.total} · Matchade: {matchResult.matched} · Ej matchade: {matchResult.unmatched} · Osäkra: {matchResult.skipped_low_confidence}
+                    {!matchResult.dry_run && <span style={{ color: '#065f46', fontWeight: 600 }}> · Sparade!</span>}
+                  </div>
+                  {matchResult.results.matched.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {matchResult.results.matched.map(m => (
+                        <div key={m.id} style={card({ padding: '8px 10px', background: '#f0fdf4' })}>
+                          <span style={{ fontWeight: 600, color: '#111827', fontSize: 13 }}>{m.bar_name}</span>
+                          <span style={{ ...muted, fontSize: 12 }}> → {m.google_name} ({Math.round(m.similarity * 100)}% likhet, {m.dist}m)</span>
+                        </div>
+                      ))}
+                      {matchResult.results.unmatched.map(m => (
+                        <div key={m.id} style={card({ padding: '8px 10px', background: '#fef2f2' })}>
+                          <span style={{ fontWeight: 600, color: '#991b1b', fontSize: 13 }}>{m.name}</span>
+                          <span style={{ ...muted, fontSize: 12 }}> — ingen match hittad</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {audit.map((a) => (
                 <div key={a.id} style={card({ padding: '10px 12px' })}>
