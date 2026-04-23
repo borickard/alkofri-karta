@@ -152,6 +152,8 @@ export default function AdminPage() {
   const [audit, setAudit] = useState<AuditRow[]>([]);
   const [beverageNames, setBeverageNames] = useState<BeverageNameRow[]>([]);
   const [expandedNames, setExpandedNames] = useState<Set<string>>(new Set());
+  const [renameDrafts, setRenameDrafts] = useState<Record<string, string>>({});
+  const [renameSaving, setRenameSaving] = useState<string | null>(null);
   const [includeDeleted, setIncludeDeleted] = useState(false);
   const [barsWithPrices, setBarsWithPrices] = useState<number | null>(null);
   const [matchLoading, setMatchLoading] = useState(false);
@@ -216,6 +218,43 @@ export default function AdminPage() {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, days, includeDeleted, isDemo]);
+
+  async function renameBeverage(row: BeverageNameRow) {
+    const key = `${row.category}::${row.name.toLowerCase()}`;
+    const draft = (renameDrafts[key] ?? row.name).trim();
+    if (!draft) { setStatus('Nytt namn saknas.'); return; }
+    if (draft === row.name) { setStatus('Inget att uppdatera.'); return; }
+    const existing = beverageNames.find(
+      r => r.category === row.category && r.name.toLowerCase() === draft.toLowerCase() && r !== row,
+    );
+    const confirmMsg = existing
+      ? `Sammanfoga "${row.name}" (${row.total}) med "${existing.name}" (${existing.total})?`
+      : `Byt namn från "${row.name}" till "${draft}"?`;
+    if (!confirm(confirmMsg)) return;
+    setRenameSaving(key);
+    setStatus('Sparar...');
+    try {
+      const r = await fetch('/api/admin/rename-beverage-name', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          category: row.category,
+          old_name: row.name,
+          new_name: draft,
+          demo: isDemo,
+        }),
+      });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error || 'Rename misslyckades');
+      setStatus(`Uppdaterade ${j.affected} rad${j.affected === 1 ? '' : 'er'}.`);
+      setRenameDrafts(prev => { const next = { ...prev }; delete next[key]; return next; });
+      await load();
+    } catch (e: unknown) {
+      setStatus(e instanceof Error ? e.message : 'Fel');
+    } finally {
+      setRenameSaving(null);
+    }
+  }
 
   async function deletePrice(price_id: number) {
     if (!confirm(`Soft-delete price_id=${price_id}?`)) return;
@@ -541,30 +580,57 @@ export default function AdminPage() {
                       </span>
                     </button>
                     {expanded && (
-                      <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        {row.bars.map(b => (
-                          <a
-                            key={b.bar_id}
-                            href={`/?bar=${b.bar_id}${isDemo ? '&demo' : ''}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'center',
-                              padding: '6px 10px',
-                              background: '#f9fafb',
-                              border: '1px solid #e5e7eb',
-                              borderRadius: 6,
-                              fontSize: 13,
-                              color: '#111827',
-                              textDecoration: 'none',
-                            }}
+                      <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          {row.bars.map(b => (
+                            <a
+                              key={b.bar_id}
+                              href={`/?bar=${b.bar_id}${isDemo ? '&demo' : ''}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                padding: '6px 10px',
+                                background: '#f9fafb',
+                                border: '1px solid #e5e7eb',
+                                borderRadius: 6,
+                                fontSize: 13,
+                                color: '#111827',
+                                textDecoration: 'none',
+                              }}
+                            >
+                              <span>{b.bar_name} <span style={muted}>↗</span></span>
+                              <span style={muted}>{b.count} {b.count === 1 ? 'rapport' : 'rapporter'}</span>
+                            </a>
+                          ))}
+                        </div>
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                          <span style={{ ...muted, fontSize: 12 }}>Byt namn:</span>
+                          <input
+                            style={{ ...inputStyle, flex: 1, minWidth: 160 }}
+                            value={renameDrafts[key] ?? row.name}
+                            onChange={(e) => setRenameDrafts(prev => ({ ...prev, [key]: e.target.value }))}
+                            onKeyDown={(e) => { if (e.key === 'Enter') renameBeverage(row); }}
+                            disabled={renameSaving === key}
+                            placeholder={row.name}
+                          />
+                          <button
+                            style={{ ...btn('dark'), padding: '5px 12px', fontSize: 13 }}
+                            onClick={() => renameBeverage(row)}
+                            disabled={renameSaving === key}
                           >
-                            <span>{b.bar_name} <span style={muted}>↗</span></span>
-                            <span style={muted}>{b.count} {b.count === 1 ? 'rapport' : 'rapporter'}</span>
-                          </a>
-                        ))}
+                            {renameSaving === key ? 'Sparar…' : 'Spara'}
+                          </button>
+                          <button
+                            style={{ ...btn('light'), padding: '5px 12px', fontSize: 13 }}
+                            onClick={() => setRenameDrafts(prev => { const next = { ...prev }; delete next[key]; return next; })}
+                            disabled={renameSaving === key || (renameDrafts[key] ?? row.name) === row.name}
+                          >
+                            Återställ
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
