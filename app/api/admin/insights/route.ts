@@ -3,7 +3,7 @@ export const runtime = 'nodejs';
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getTableNames } from '@/lib/tableNames';
-import { parseCityFromAddress, countyForLatLng } from '@/lib/geo';
+import { parseCityFromAddress, cityForLatLng, countyForLatLng } from '@/lib/geo';
 
 const ALLOWED_CATEGORIES = ['na_beer', 'soda', 'na_wine', 'other'] as const;
 type Category = typeof ALLOWED_CATEGORIES[number];
@@ -151,8 +151,11 @@ export async function GET(req: Request) {
       const lat = Number(bb.lat);
       const lng = Number(bb.lng);
       const address = typeof bb.address === 'string' ? bb.address : null;
-      const city = parseCityFromAddress(address) ?? 'Okänd';
-      const county = Number.isFinite(lat) && Number.isFinite(lng) ? countyForLatLng(lat, lng) : 'Okänd';
+      const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
+      const city = parseCityFromAddress(address)
+        ?? (hasCoords ? cityForLatLng(lat, lng) : null)
+        ?? 'Okänd';
+      const county = hasCoords ? countyForLatLng(lat, lng) : 'Okänd';
       barMap.set(id, { id, name: String(bb.name ?? ''), lat, lng, address, city, county });
     }
 
