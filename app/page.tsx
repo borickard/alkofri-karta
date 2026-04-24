@@ -438,7 +438,7 @@ export default function Page() {
   const [omOpen, setOmOpen] = useState(() => pathname === '/info');
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [googleResults, setGoogleResults] = useState<{ google_place_id: string | null; name: string; address: string | null; lat: number; lng: number }[]>([]);
+  const [googleResults, setGoogleResults] = useState<{ google_place_id: string | null; name: string; address: string | null; lat: number; lng: number; venue_type: string | null }[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1032,7 +1032,7 @@ export default function Page() {
     }, 350);
   }
 
-  async function openGoogleResult(place: { google_place_id: string | null; name: string; address: string | null; lat: number; lng: number }) {
+  async function openGoogleResult(place: { google_place_id: string | null; name: string; address: string | null; lat: number; lng: number; venue_type: string | null }) {
     focusPoint(place.lng, place.lat, 16);
     if (!await checkIsSweden(place.lat, place.lng)) return;
     track('Search Used');
@@ -1051,6 +1051,7 @@ export default function Page() {
         source_id: place.google_place_id,
         google_place_id: place.google_place_id,
         address: place.address,
+        venue_type: place.venue_type,
         demo: isDemoMode,
       }),
     }).then(r => r.json()).then(j => {

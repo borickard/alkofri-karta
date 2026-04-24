@@ -25,6 +25,26 @@ const ALLOWED_TYPES = new Set([
   'inn', 'motel', 'guest_house', 'extended_stay_hotel', 'farmstay',
 ]);
 
+type VenueType = 'bar' | 'food' | 'hotel';
+
+const TYPE_TO_VENUE: Record<string, VenueType> = {
+  bar: 'bar', pub: 'bar', brewpub: 'bar', wine_bar: 'bar',
+  bar_and_grill: 'bar', night_club: 'bar',
+  restaurant: 'food', cafe: 'food', coffee_shop: 'food', bakery: 'food',
+  food_court: 'food', tea_house: 'food',
+  hotel: 'hotel', lodging: 'hotel', resort_hotel: 'hotel',
+  bed_and_breakfast: 'hotel', hostel: 'hotel', inn: 'hotel',
+  motel: 'hotel', guest_house: 'hotel', extended_stay_hotel: 'hotel',
+  farmstay: 'hotel',
+};
+
+function inferVenueType(p: PlacesResult): VenueType | null {
+  const types = [p.primaryType, ...(p.types ?? [])].filter((t): t is string => !!t);
+  for (const t of types) if (TYPE_TO_VENUE[t]) return TYPE_TO_VENUE[t];
+  if (types.some(t => t.endsWith('_restaurant'))) return 'food';
+  return null;
+}
+
 function isRelevantPlace(p: PlacesResult): boolean {
   const all = [p.primaryType, ...(p.types ?? [])].filter((t): t is string => !!t);
   // Catch all *_restaurant variants (italian_restaurant, sushi_restaurant, …).
@@ -79,6 +99,7 @@ export async function GET(req: Request) {
         address: p.formattedAddress ?? null,
         lat: p.location!.latitude,
         lng: p.location!.longitude,
+        venue_type: inferVenueType(p),
       }))
       .slice(0, 8);
 
