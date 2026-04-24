@@ -1005,7 +1005,10 @@ export default function Page() {
   }
 
   const searchResults = searchQuery.trim().length > 0
-    ? bars.filter(b => normalizeSearch(b.name).includes(normalizeSearch(searchQuery.trim()))).slice(0, 5)
+    ? bars
+        .filter(b => normalizeSearch(b.name).includes(normalizeSearch(searchQuery.trim())))
+        .filter(b => classifyVenueType(b) !== 'other')
+        .slice(0, 5)
     : [];
 
   const dbNames = new Set(searchResults.map(b => normalizeSearch(b.name)));

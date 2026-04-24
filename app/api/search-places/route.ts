@@ -82,7 +82,7 @@ export async function GET(req: Request) {
       }))
       .slice(0, 8);
 
-    return NextResponse.json({ ok: true, results });
+    return NextResponse.json({ ok: true, results }, { headers: { 'Cache-Control': 'no-store' } });
   } catch {
     return NextResponse.json({ ok: false, error: 'Sökning misslyckades' }, { status: 502 });
   }
