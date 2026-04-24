@@ -8,7 +8,28 @@ type PlacesResult = {
   location?: { latitude: number; longitude: number };
   businessStatus?: string;
   formattedAddress?: string;
+  primaryType?: string;
+  types?: string[];
 };
+
+// Places we might credibly have an alcohol-free drink price for.
+// Google's Text Search returns any POI that matches the query string, so
+// without this filter users see hospitals, supermarkets, hair salons etc.
+const ALLOWED_TYPES = new Set([
+  // food & drink
+  'restaurant', 'bar', 'pub', 'cafe', 'coffee_shop', 'bakery',
+  'wine_bar', 'bar_and_grill', 'night_club', 'food_court', 'brewpub',
+  'tea_house',
+  // hotels (hotel bars are fair game)
+  'hotel', 'lodging', 'resort_hotel', 'bed_and_breakfast', 'hostel',
+  'inn', 'motel', 'guest_house', 'extended_stay_hotel', 'farmstay',
+]);
+
+function isRelevantPlace(p: PlacesResult): boolean {
+  const all = [p.primaryType, ...(p.types ?? [])].filter((t): t is string => !!t);
+  // Catch all *_restaurant variants (italian_restaurant, sushi_restaurant, …).
+  return all.some(t => ALLOWED_TYPES.has(t) || t.endsWith('_restaurant'));
+}
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -30,7 +51,7 @@ export async function GET(req: Request) {
       headers: {
         'Content-Type': 'application/json',
         'X-Goog-Api-Key': apiKey,
-        'X-Goog-FieldMask': 'places.id,places.displayName,places.location,places.formattedAddress,places.businessStatus',
+        'X-Goog-FieldMask': 'places.id,places.displayName,places.location,places.formattedAddress,places.businessStatus,places.primaryType,places.types',
       },
       body: JSON.stringify({
         textQuery: q,
@@ -39,7 +60,7 @@ export async function GET(req: Request) {
         },
         languageCode: 'sv',
         regionCode: 'SE',
-        maxResultCount: 8,
+        maxResultCount: 15,
       }),
       signal: controller.signal,
     });
@@ -51,6 +72,7 @@ export async function GET(req: Request) {
 
     const results = (data.places ?? [])
       .filter(p => p.businessStatus !== 'CLOSED_PERMANENTLY' && p.location && p.displayName)
+      .filter(isRelevantPlace)
       .map(p => ({
         google_place_id: p.id,
         name: p.displayName!.text,
