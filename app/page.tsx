@@ -1030,6 +1030,7 @@ export default function Page() {
   }
 
   async function openGoogleResult(place: { google_place_id: string | null; name: string; address: string | null; lat: number; lng: number }) {
+    focusPoint(place.lng, place.lat, 16);
     if (!await checkIsSweden(place.lat, place.lng)) return;
     track('Search Used');
     track('New Bar Added');
@@ -1076,6 +1077,7 @@ export default function Page() {
   }
 
   async function openBarFromSearch(b: Bar) {
+    focusPoint(b.lng, b.lat, 16);
     if (!await checkIsSweden(b.lat, b.lng)) return;
     track('Search Used');
     setSearchOpen(false);
