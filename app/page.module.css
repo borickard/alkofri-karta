@@ -133,8 +133,10 @@
 
   width: min(420px, calc(100vw - 24px));
   /* Extra bottom clearance so the panel doesn't sit under the price-tier
-     filter bar (~80px tall) anchored at bottom: 12px. */
+     filter bar (~80px tall) anchored at bottom: 12px. dvh accounts for
+     iOS Safari's address bar / bottom toolbar; vh is the fallback. */
   max-height: calc(100vh - 200px);
+  max-height: calc(100dvh - 200px);
   overflow-y: auto;
   background: var(--panel-bg);
   border: var(--border-mid);
@@ -270,6 +272,7 @@
   flex-direction: column;
   gap: 6px;
   max-height: 50vh;
+  max-height: 50dvh;
   overflow-y: auto;
   /* Subtle inset so users see there's more to scroll when capped. */
   -webkit-overflow-scrolling: touch;
