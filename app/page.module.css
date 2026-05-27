@@ -275,6 +275,29 @@
   -webkit-overflow-scrolling: touch;
 }
 
+@keyframes skeletonPulse {
+  0%, 100% { background-color: #e5e7eb; }
+  50%      { background-color: #f3f4f6; }
+}
+
+.skeleton {
+  background-color: #e5e7eb;
+  border-radius: 4px;
+  animation: skeletonPulse 1.4s ease-in-out infinite;
+}
+
+.skeletonRow {
+  height: 32px;
+  width: 100%;
+}
+
+.skeletonPill {
+  display: inline-block;
+  height: 20px;
+  width: 110px;
+  vertical-align: middle;
+}
+
 .historyItem {
   border-radius: var(--r-sm);
   padding: 7px 10px;

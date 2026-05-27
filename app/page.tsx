@@ -445,6 +445,10 @@ export default function Page() {
   const [selectedBarId, setSelectedBarId] = useState<number | null>(null);
   const selectedBar = useMemo(() => (selectedBarId ? bars.find(b => b.id === selectedBarId) ?? null : null), [bars, selectedBarId]);
   const [candidate, setCandidate] = useState<Candidate | null>(null);
+  useEffect(() => {
+    const name = selectedBar?.name ?? candidate?.name;
+    if (name) setTitleCache(name);
+  }, [selectedBar?.name, candidate?.name]);
   const locationInSweden = selectedBar
     ? isInSweden(selectedBar.lat, selectedBar.lng)
     : candidate
@@ -456,8 +460,13 @@ export default function Page() {
   const [categoryInput, setCategoryInput] = useState<Category>('na_beer');
   const [status, setStatus] = useState('');
   const [beverages, setBeverages] = useState<LatestPrice[]>([]);
+  const [beveragesLoading, setBeveragesLoading] = useState(false);
   const [beverageSuggestions, setBeverageSuggestions] = useState<string[]>([]);
   const [editingBeverage, setEditingBeverage] = useState<LatestPrice | null>(null);
+  // Cached panel title — keeps the last good name on screen across the
+  // momentary render where selectedBar resolves to null between bars
+  // array updates (otherwise the title flashes empty).
+  const [titleCache, setTitleCache] = useState('');
 
   useEffect(() => {
     const params = new URLSearchParams();
@@ -607,6 +616,8 @@ export default function Page() {
   }
 
   async function loadBeverages(barId: number) {
+    setBeveragesLoading(true);
+    setBeverages([]);
     const pricesTable = isDemoMode ? 'prices_demo' : 'prices';
     const { data, error } = await supabase
       .from(pricesTable)
@@ -615,7 +626,7 @@ export default function Page() {
       .is('deleted_at', null)
       .order('created_at', { ascending: false });
 
-    if (error) throw error;
+    if (error) { setBeveragesLoading(false); throw error; }
 
     setBeverages(
       (data ?? []).map((r) => {
@@ -633,6 +644,7 @@ export default function Page() {
         };
       }),
     );
+    setBeveragesLoading(false);
   }
 
   function clearMarkers() {
@@ -1121,6 +1133,8 @@ export default function Page() {
     setCandidate(null);
     setStatus('');
     setBeverages([]);
+    setBeveragesLoading(false);
+    setTitleCache('');
     setPriceInput('');
     setBeverageNameInput('');
     setCategoryInput('na_beer');
@@ -1465,7 +1479,7 @@ export default function Page() {
                 flexDirection: 'column' as const,
                 display: 'flex',
               }}>
-                {selectedBar ? selectedBar.name : candidate?.name}
+                {selectedBar?.name ?? candidate?.name ?? titleCache}
               </div>
               <button
                 onClick={closePanel}
@@ -1492,7 +1506,8 @@ export default function Page() {
               const mapsUrl = placeId
                 ? `https://www.google.com/maps/place/?q=place_id:${placeId}`
                 : addr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}` : null;
-              if (!addr && !oh) return null;
+              const showOhSkeleton = !oh && ohLoading;
+              if (!addr && !oh && !showOhSkeleton) return null;
               const openStatus = getOpenStatus(oh);
               return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontFamily: 'var(--font-body)', fontSize: 13, color: '#6B7280' }}>
@@ -1502,6 +1517,9 @@ export default function Page() {
                     </a>
                   )}
                   {addr && !mapsUrl && <span>{addr}</span>}
+                  {showOhSkeleton && (
+                    <span className={`${styles.skeleton} ${styles.skeletonPill}`} aria-label="Hämtar öppettider" />
+                  )}
                   {oh && openStatus !== null && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                       <button
@@ -1648,12 +1666,19 @@ export default function Page() {
 
               return (
                 <>
-                  {beverages.length === 0 && (
+                  {beveragesLoading && (
+                    <div className={styles.history} aria-label="Hämtar drycker">
+                      {[0, 1, 2].map(i => (
+                        <div key={`bev-skel-${i}`} className={`${styles.skeleton} ${styles.skeletonRow}`} />
+                      ))}
+                    </div>
+                  )}
+                  {!beveragesLoading && beverages.length === 0 && (
                     <div style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: '#6B7280' }}>
                       Inga drycker rapporterade än.
                     </div>
                   )}
-                  {beverageGroups.length > 0 && (
+                  {!beveragesLoading && beverageGroups.length > 0 && (
                     <div className={styles.history}>
                       {beverageGroups.flatMap(group => [
                         <div key={`header-${group.category}`} className={styles.hint} style={{ marginTop: 4 }}>
