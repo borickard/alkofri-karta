@@ -132,7 +132,9 @@
   z-index: 10;
 
   width: min(420px, calc(100vw - 24px));
-  max-height: calc(100vh - 120px);
+  /* Extra bottom clearance so the panel doesn't sit under the price-tier
+     filter bar (~80px tall) anchored at bottom: 12px. */
+  max-height: calc(100vh - 200px);
   overflow-y: auto;
   background: var(--panel-bg);
   border: var(--border-mid);
