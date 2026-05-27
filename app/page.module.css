@@ -267,6 +267,10 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+  max-height: 50vh;
+  overflow-y: auto;
+  /* Subtle inset so users see there's more to scroll when capped. */
+  -webkit-overflow-scrolling: touch;
 }
 
 .historyItem {
