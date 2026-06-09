@@ -73,4 +73,11 @@ ADMIN_USER=
 ADMIN_PASSWORD=
 ADMIN_REALM=
 IP_HASH_SALT=
+
+# Sentry — optional. Errors only go to Sentry when the DSN is set.
+NEXT_PUBLIC_SENTRY_DSN=
+# Build-time only, for source-map upload (skip if you're fine with minified stacks):
+SENTRY_ORG=
+SENTRY_PROJECT=
+SENTRY_AUTH_TOKEN=
 ```
