@@ -417,6 +417,7 @@ export default function Page() {
   const zoomRef = useRef<number>(5);
   const [zoomLevel, setZoomLevel] = useState(5);
   const [mapLoaded, setMapLoaded] = useState(false);
+  const [mapInitError, setMapInitError] = useState(false);
   const markersRef = useRef<Map<number, maplibregl.Marker>>(new Map());
 
   const searchParams = useSearchParams();
@@ -1181,13 +1182,29 @@ export default function Page() {
     if (!mapContainerRef.current) return;
     if (mapRef.current) return;
 
-    const map = new maplibregl.Map({
-      container: mapContainerRef.current,
-      style: `https://api.maptiler.com/maps/streets-v2/style.json?key=${MAPTILER_KEY}&language=sv`,
-      center: [15.2134, 59.2741],
-      zoom: 5,
-      attributionControl: false,
-    });
+    // WebGL pre-flight: in-app browsers (Facebook/Instagram/LinkedIn webview),
+    // hardware-acceleration-off setups, and some sandboxed iframes return null
+    // here. MapLibre would otherwise throw an unhandled exception.
+    const probe = document.createElement('canvas');
+    const hasWebgl = !!(probe.getContext('webgl2') || probe.getContext('webgl'));
+    if (!hasWebgl) {
+      setMapInitError(true);
+      return;
+    }
+
+    let map: maplibregl.Map;
+    try {
+      map = new maplibregl.Map({
+        container: mapContainerRef.current,
+        style: `https://api.maptiler.com/maps/streets-v2/style.json?key=${MAPTILER_KEY}&language=sv`,
+        center: [15.2134, 59.2741],
+        zoom: 5,
+        attributionControl: false,
+      });
+    } catch {
+      setMapInitError(true);
+      return;
+    }
 
     map.addControl(new maplibregl.NavigationControl({ showCompass: true }), 'top-right');
     map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-left');
@@ -1402,7 +1419,21 @@ export default function Page() {
 
       <div className={styles.mapWrap}>
         <div ref={mapContainerRef} className={styles.map} />
-        {!mapLoaded && <div className={styles.mapLoadingBg} />}
+        {mapInitError && (
+          <div className={styles.mapErrorOverlay}>
+            <div className={styles.mapErrorCard}>
+              <div style={{ fontWeight: 700, fontSize: 16, color: '#111827', marginBottom: 8 }}>
+                Kartan kan inte visas
+              </div>
+              <div style={{ fontSize: 14, color: '#374151', lineHeight: 1.5 }}>
+                Din webbläsare stöder inte WebGL, eller så öppnar du sidan i en app (t.ex. Facebook, Instagram, LinkedIn).
+                <br /><br />
+                Prova att öppna <strong>vadkostarnollan.se</strong> i Safari, Chrome eller Firefox istället.
+              </div>
+            </div>
+          </div>
+        )}
+        {!mapLoaded && !mapInitError && <div className={styles.mapLoadingBg} />}
 
         <button className={styles.locateBtn} onClick={locateMe} aria-label="Hitta min plats" title="Hitta min plats">
           ⌖

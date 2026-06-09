@@ -38,6 +38,27 @@
   z-index: 1;
 }
 
+.mapErrorOverlay {
+  position: absolute;
+  inset: 0;
+  background: #f3f4f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 5;
+}
+
+.mapErrorCard {
+  max-width: 420px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+  padding: 20px;
+  font-family: var(--font-body);
+}
+
 .mapBtn {
   background: #ffffff;
   border: 1px solid #d1d5db;
