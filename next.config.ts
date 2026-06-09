@@ -14,4 +14,8 @@ export default withSentryConfig(nextConfig, {
   project: process.env.SENTRY_PROJECT,
   authToken: process.env.SENTRY_AUTH_TOKEN,
   widenClientFileUpload: true,
+  // Bypass ad-blockers (ERR_BLOCKED_BY_CLIENT on *.ingest.sentry.io).
+  // The client SDK posts to /monitoring on our own domain; the auto-generated
+  // route forwards envelopes to Sentry server-side.
+  tunnelRoute: '/monitoring',
 });
