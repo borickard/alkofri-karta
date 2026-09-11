@@ -62,6 +62,24 @@ No test suite is configured.
   - DB migrations: `supabase/migrations/add_beverage_name.sql` + `supabase/migrations/add_beverage_category.sql`.
   - API route: `GET /api/beverage-names?category=<category>` — returns names used 2+ times within that category.
 
+## Third-party data export
+
+`GET /api/export` returns all bars and active prices in one response, suitable for a partner to download and match against their own dataset.
+
+Response shape:
+```json
+{
+  "places": [{ "id": 315, "name": "Bleck", "google_place_id": "ChIJ…", "lat": 59.3141, "lng": 18.0721 }],
+  "prices": [{ "id": 4711, "place_id": 315, "price": 65, "name": "St Eriks ljus lager", "volume_cl": null, "updated_at": "2026-08-21T18:04:00Z" }]
+}
+```
+
+- Only bars with at least one active price are included.
+- `google_place_id` is present for bars that have been matched via the admin's Google Places matcher.
+- `volume_cl` is always `null` — we don't collect can/bottle size.
+- No user data is exposed.
+- If `EXPORT_API_KEY` is set, callers must send `X-Api-Key: <key>` (or `Authorization: Bearer <key>`). If unset, the endpoint is open (data is already public on the site).
+
 ## Environment variables
 
 ```bash
@@ -73,6 +91,9 @@ ADMIN_USER=
 ADMIN_PASSWORD=
 ADMIN_REALM=
 IP_HASH_SALT=
+
+# Optional API key for the /api/export endpoint (partner data feed)
+EXPORT_API_KEY=
 
 # Sentry — optional. Errors only go to Sentry when the DSN is set.
 NEXT_PUBLIC_SENTRY_DSN=
