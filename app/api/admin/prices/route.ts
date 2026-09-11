@@ -17,21 +17,24 @@ export async function GET(req: Request) {
     const supabase = createClient(url, serviceKey, { auth: { persistSession: false } });
 
     const u = new URL(req.url);
-    const days = Number(u.searchParams.get('days') || '30');
-    const limit = Math.min(500, Math.max(20, Number(u.searchParams.get('limit') || '200')));
+    const days = Number(u.searchParams.get('days') || '365');
+    const limit = Math.min(2000, Math.max(20, Number(u.searchParams.get('limit') || '500')));
     const includeDeleted = (u.searchParams.get('include_deleted') || '0') === '1';
     const isDemo = (u.searchParams.get('demo') || '0') === '1';
 
     const { prices: pricesTable, bars: barsTable } = getTableNames(isDemo);
-    const since = new Date(Date.now() - Math.max(1, days) * 24 * 60 * 60 * 1000).toISOString();
 
     // Steg 1: hämta priser
     let q = supabase
       .from(pricesTable)
-      .select('id,bar_id,price_sek,created_at,deleted_at')
-      .gte('created_at', since)
+      .select('id,bar_id,price_sek,created_at,deleted_at,beverage_name')
       .order('created_at', { ascending: false })
       .limit(limit);
+
+    if (days > 0) {
+      const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+      q = q.gte('created_at', since);
+    }
 
     if (!includeDeleted) q = q.is('deleted_at', null);
 
@@ -63,6 +66,7 @@ export async function GET(req: Request) {
         price_sek: unknown;
         created_at: unknown;
         deleted_at?: unknown | null;
+        beverage_name?: unknown | null;
       };
 
       const barId = Number(rr.bar_id);
@@ -73,6 +77,7 @@ export async function GET(req: Request) {
         price_sek: Number(rr.price_sek),
         created_at: String(rr.created_at),
         deleted_at: rr.deleted_at === null || rr.deleted_at === undefined ? null : String(rr.deleted_at),
+        beverage_name: rr.beverage_name != null ? String(rr.beverage_name) : null,
       };
     });
 
