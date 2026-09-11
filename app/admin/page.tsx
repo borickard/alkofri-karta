@@ -158,7 +158,7 @@ export default function AdminPage() {
     setStatus('');
     try {
       if (tab === 'prices') {
-        const url = `/api/admin/prices?days=${encodeURIComponent(days)}&limit=500&include_deleted=${includeDeleted ? '1' : '0'}&demo=${isDemo ? '1' : '0'}`;
+        const url = `/api/admin/prices?days=0&limit=500&include_deleted=${includeDeleted ? '1' : '0'}&demo=${isDemo ? '1' : '0'}`;
         const r = await fetch(url, { cache: 'no-store' });
         const j = await r.json();
         if (!j.ok) throw new Error(j.error || 'Kunde inte ladda priser');
@@ -296,13 +296,17 @@ export default function AdminPage() {
 
           {/* Controls */}
           <div style={{ marginTop: 14, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-            <span style={label}>Dagar:</span>
-            <input
-              style={{ ...inputStyle, width: 90 }}
-              inputMode="numeric"
-              value={String(days)}
-              onChange={(e) => setDays(Number(e.target.value || 0))}
-            />
+            {tab === 'audit' && (
+              <>
+                <span style={label}>Dagar:</span>
+                <input
+                  style={{ ...inputStyle, width: 90 }}
+                  inputMode="numeric"
+                  value={String(days)}
+                  onChange={(e) => setDays(Number(e.target.value || 0))}
+                />
+              </>
+            )}
 
             {tab === 'prices' && (
               <label style={{ display: 'flex', gap: 6, alignItems: 'center', ...label, cursor: 'pointer' }}>
