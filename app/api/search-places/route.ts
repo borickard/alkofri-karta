@@ -8,7 +8,48 @@ type PlacesResult = {
   location?: { latitude: number; longitude: number };
   businessStatus?: string;
   formattedAddress?: string;
+  primaryType?: string;
+  types?: string[];
 };
+
+// Places we might credibly have an alcohol-free drink price for.
+// Google's Text Search returns any POI that matches the query string, so
+// without this filter users see hospitals, supermarkets, hair salons etc.
+const ALLOWED_TYPES = new Set([
+  // food & drink
+  'restaurant', 'bar', 'pub', 'cafe', 'coffee_shop', 'bakery',
+  'wine_bar', 'bar_and_grill', 'night_club', 'food_court', 'brewpub',
+  'tea_house',
+  // hotels (hotel bars are fair game)
+  'hotel', 'lodging', 'resort_hotel', 'bed_and_breakfast', 'hostel',
+  'inn', 'motel', 'guest_house', 'extended_stay_hotel', 'farmstay',
+]);
+
+type VenueType = 'bar' | 'food' | 'hotel';
+
+const TYPE_TO_VENUE: Record<string, VenueType> = {
+  bar: 'bar', pub: 'bar', brewpub: 'bar', wine_bar: 'bar',
+  bar_and_grill: 'bar', night_club: 'bar',
+  restaurant: 'food', cafe: 'food', coffee_shop: 'food', bakery: 'food',
+  food_court: 'food', tea_house: 'food',
+  hotel: 'hotel', lodging: 'hotel', resort_hotel: 'hotel',
+  bed_and_breakfast: 'hotel', hostel: 'hotel', inn: 'hotel',
+  motel: 'hotel', guest_house: 'hotel', extended_stay_hotel: 'hotel',
+  farmstay: 'hotel',
+};
+
+function inferVenueType(p: PlacesResult): VenueType | null {
+  const types = [p.primaryType, ...(p.types ?? [])].filter((t): t is string => !!t);
+  for (const t of types) if (TYPE_TO_VENUE[t]) return TYPE_TO_VENUE[t];
+  if (types.some(t => t.endsWith('_restaurant'))) return 'food';
+  return null;
+}
+
+function isRelevantPlace(p: PlacesResult): boolean {
+  const all = [p.primaryType, ...(p.types ?? [])].filter((t): t is string => !!t);
+  // Catch all *_restaurant variants (italian_restaurant, sushi_restaurant, …).
+  return all.some(t => ALLOWED_TYPES.has(t) || t.endsWith('_restaurant'));
+}
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -30,7 +71,7 @@ export async function GET(req: Request) {
       headers: {
         'Content-Type': 'application/json',
         'X-Goog-Api-Key': apiKey,
-        'X-Goog-FieldMask': 'places.id,places.displayName,places.location,places.formattedAddress,places.businessStatus',
+        'X-Goog-FieldMask': 'places.id,places.displayName,places.location,places.formattedAddress,places.businessStatus,places.primaryType,places.types',
       },
       body: JSON.stringify({
         textQuery: q,
@@ -39,7 +80,7 @@ export async function GET(req: Request) {
         },
         languageCode: 'sv',
         regionCode: 'SE',
-        maxResultCount: 8,
+        maxResultCount: 15,
       }),
       signal: controller.signal,
     });
@@ -51,16 +92,18 @@ export async function GET(req: Request) {
 
     const results = (data.places ?? [])
       .filter(p => p.businessStatus !== 'CLOSED_PERMANENTLY' && p.location && p.displayName)
+      .filter(isRelevantPlace)
       .map(p => ({
         google_place_id: p.id,
         name: p.displayName!.text,
         address: p.formattedAddress ?? null,
         lat: p.location!.latitude,
         lng: p.location!.longitude,
+        venue_type: inferVenueType(p),
       }))
       .slice(0, 8);
 
-    return NextResponse.json({ ok: true, results });
+    return NextResponse.json({ ok: true, results }, { headers: { 'Cache-Control': 'no-store' } });
   } catch {
     return NextResponse.json({ ok: false, error: 'Sökning misslyckades' }, { status: 502 });
   }
