@@ -22,6 +22,7 @@ type PriceRow = {
   price_sek: number;
   created_at: string;
   deleted_at: string | null;
+  beverage_name: string | null;
 };
 
 type SortKey = 'newest' | 'oldest' | 'highest' | 'lowest';
@@ -126,7 +127,7 @@ function calcStats(rows: PriceRow[]) {
 export default function AdminPage() {
   const searchParams = useSearchParams();
   const [tab, setTab] = useState<'prices' | 'audit'>('prices');
-  const [days, setDays] = useState(30);
+  const [days, setDays] = useState(365);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState('');
   const [isDemo, setIsDemo] = useState(() => searchParams.has('demo'));
@@ -157,7 +158,7 @@ export default function AdminPage() {
     setStatus('');
     try {
       if (tab === 'prices') {
-        const url = `/api/admin/prices?days=${encodeURIComponent(days)}&limit=200&include_deleted=${includeDeleted ? '1' : '0'}&demo=${isDemo ? '1' : '0'}`;
+        const url = `/api/admin/prices?days=${encodeURIComponent(days)}&limit=500&include_deleted=${includeDeleted ? '1' : '0'}&demo=${isDemo ? '1' : '0'}`;
         const r = await fetch(url, { cache: 'no-store' });
         const j = await r.json();
         if (!j.ok) throw new Error(j.error || 'Kunde inte ladda priser');
@@ -390,7 +391,10 @@ export default function AdminPage() {
                     <div style={{ fontWeight: 600, color: '#111827', fontSize: 14 }}>
                       {p.bar_name} <span style={muted}>#{p.bar_id}</span>
                     </div>
-                    <div style={{ fontWeight: 600, color: '#111827', fontSize: 14 }}>{p.price_sek} kr</div>
+                    <div style={{ fontWeight: 600, color: '#111827', fontSize: 14 }}>
+                      {p.beverage_name ? <span style={{ color: '#374151', fontWeight: 400, marginRight: 6 }}>{p.beverage_name}</span> : null}
+                      {p.price_sek} kr
+                    </div>
                   </div>
                   <div style={{ marginTop: 4, display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
                     <div style={muted}>Skapad: {fmt(p.created_at)}</div>
